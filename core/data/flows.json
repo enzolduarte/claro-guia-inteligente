@@ -1,0 +1,432 @@
+{
+  "versao": "1.0.0",
+  "atualizado_em": "2026-08-19",
+  "_sobre": "Base de conhecimento do Claro Guia Inteligente. Fonte unica de verdade para classificacao, roteamento e geracao de resposta. Dados ficticios para prototipo academico (Challenge 2026, FIAP 4SI, Time Adamanto AI).",
+  "_avisos": [
+    "As URLs sao ILUSTRATIVAS e nao foram verificadas. Confirmar ou substituir por placeholders antes da gravacao do video.",
+    "O Documento de Visao lista 6 categorias de intencao. Aqui existem 7: COBRANCA_INDEVIDA foi promovida a intencao propria porque o Documento de Arquitetura ja a trata como tal (Cenario 4, score 0,88). Alinhar essa contagem no documento final.",
+    "Saudacoes vagas ('oi', 'bom dia', 'preciso de ajuda') NAO estao em nenhuma lista de exemplos. Elas devem cair em confianca baixa e disparar a pergunta aberta, conforme a tabela do Documento de Arquitetura."
+  ],
+
+  "config": {
+    "limiar_alto": 0.80,
+    "limiar_medio": 0.60,
+    "destino_padrao": "ATENDIMENTO_HUMANO",
+    "timeout_llm_ms": 3000,
+    "resposta_nao_identificada": {
+      "estado": "AGUARDANDO",
+      "texto": "Oi! Sou o Guia Inteligente da Claro. Para eu te ajudar melhor, me conta com suas palavras o que voce precisa hoje: pode ser sobre fatura, internet, seu plano ou outro assunto.",
+      "sugestoes": [
+        "Duvida sobre minha fatura",
+        "Problema com a internet",
+        "Quero mudar meu plano",
+        "Falar com um atendente"
+      ]
+    }
+  },
+
+  "destinos": {
+    "FLUXO_FINANCEIRO": {
+      "label": "Detalhamento de Fatura",
+      "categoria": "financeiro",
+      "url": "https://www.claro.com.br/minha-claro/faturas",
+      "gera_protocolo": false,
+      "exige_autenticacao": true
+    },
+    "FLUXO_SEGUNDA_VIA": {
+      "label": "Portal de Faturas Claro",
+      "categoria": "financeiro",
+      "url": "https://www.claro.com.br/minha-claro/segunda-via",
+      "gera_protocolo": false,
+      "exige_autenticacao": true
+    },
+    "FLUXO_SUPORTE_TECNICO": {
+      "label": "Diagnostico Tecnico",
+      "categoria": "suporte",
+      "url": "https://www.claro.com.br/minha-claro/suporte",
+      "gera_protocolo": true,
+      "prefixo_protocolo": "CLR",
+      "exige_autenticacao": false
+    },
+    "FLUXO_COMERCIAL_UPGRADE": {
+      "label": "Upgrade de Plano",
+      "categoria": "comercial",
+      "url": "https://www.claro.com.br/minha-claro/meu-plano",
+      "gera_protocolo": false,
+      "exige_autenticacao": true
+    },
+    "FLUXO_COMERCIAL_ECONOMIA": {
+      "label": "Planos mais Economicos",
+      "categoria": "comercial",
+      "url": "https://www.claro.com.br/minha-claro/meu-plano",
+      "gera_protocolo": false,
+      "exige_autenticacao": true
+    },
+    "FLUXO_COMERCIAL_CATALOGO": {
+      "label": "Catalogo de Planos",
+      "categoria": "comercial",
+      "url": "https://www.claro.com.br/planos",
+      "gera_protocolo": false,
+      "exige_autenticacao": false
+    },
+    "FLUXO_VENDAS": {
+      "label": "Contratacao de Servicos",
+      "categoria": "comercial",
+      "url": "https://www.claro.com.br/contrate",
+      "gera_protocolo": false,
+      "exige_autenticacao": false
+    },
+    "ATENDIMENTO_HUMANO": {
+      "label": "Atendimento Humano",
+      "categoria": "atendimento",
+      "url": null,
+      "gera_protocolo": true,
+      "prefixo_protocolo": "CLR-ATD",
+      "exige_autenticacao": false
+    },
+    "ESCALACAO_HUMANA": {
+      "label": "Especialista Claro - Prioritario",
+      "categoria": "atendimento",
+      "url": null,
+      "gera_protocolo": true,
+      "prefixo_protocolo": "CLR-ESC",
+      "exige_autenticacao": false,
+      "prioridade": "alta",
+      "transfere_contexto": true
+    }
+  },
+
+  "intencoes": [
+    {
+      "id": "FATURA",
+      "nome": "Duvida sobre fatura",
+      "descricao": "Cliente quer entender o valor, o aumento ou a composicao da conta. Nao esta contestando cobranca - so quer entender.",
+      "sensivel": false,
+      "regras": [
+        "conta veio mais cara",
+        "fatura aumentou",
+        "valor da fatura",
+        "detalhamento da fatura",
+        "por que minha conta"
+      ],
+      "exemplos": [
+        "minha conta veio mais cara esse mes",
+        "porque minha fatura aumentou",
+        "veio um valor diferente na minha conta",
+        "minha fatura ta com um valor que eu nao esperava",
+        "quero entender o que ta cobrando na minha conta",
+        "pq minha conta subiu",
+        "o valor da minha fatura mudou",
+        "queria ver o detalhamento da minha conta",
+        "minha conta veio maior do que o normal",
+        "quanto ta minha fatura esse mes",
+        "qual o valor da minha conta",
+        "minha conta aumentou muito",
+        "quero ver o extrato da minha fatura",
+        "veio um valor a mais na conta",
+        "minha fatura ta diferente dos outros meses"
+      ],
+      "destino": "FLUXO_FINANCEIRO",
+      "roteiro": {
+        "reconhecimento": "Voce tem uma duvida sobre o valor da sua fatura.",
+        "resumo": "Posso te mostrar onde ver o detalhamento completo das cobrancas do mes.",
+        "passos": [
+          "Acesse o App Minha Claro ou o site claro.com.br",
+          "Faca login com seu CPF e senha",
+          "Toque em 'Minhas Faturas' e selecione o mes atual",
+          "Voce vera todas as cobrancas detalhadas, linha a linha"
+        ],
+        "fechamento": "Se preferir, posso tambem te encaminhar para a 2a via agora."
+      }
+    },
+
+    {
+      "id": "SEGUNDA_VIA",
+      "nome": "Segunda via de fatura",
+      "descricao": "Cliente precisa do boleto ou do documento de pagamento. Intencao operacional e direta.",
+      "sensivel": false,
+      "regras": [
+        "2a via",
+        "2ª via",
+        "segunda via",
+        "codigo de barras",
+        "código de barras",
+        "gerar boleto"
+      ],
+      "exemplos": [
+        "quero a segunda via da fatura",
+        "preciso do boleto desse mes",
+        "perdi minha conta manda de novo",
+        "me manda o codigo de barras ai",
+        "como faco pra pagar nao recebi o boleto",
+        "2a via da fatura por favor",
+        "nao chegou minha fatura esse mes",
+        "preciso pagar mas nao tenho o boleto",
+        "manda a fatura no meu email",
+        "quero baixar minha fatura em pdf",
+        "cade meu boleto",
+        "segunda via da conta",
+        "quero imprimir minha fatura",
+        "nao recebi a conta esse mes",
+        "gerar boleto pra pagamento"
+      ],
+      "destino": "FLUXO_SEGUNDA_VIA",
+      "roteiro": {
+        "reconhecimento": "Voce precisa da 2a via da sua fatura.",
+        "resumo": "Vou te encaminhar para o portal seguro da Claro.",
+        "passos": [
+          "Visualizar e baixar a fatura em PDF",
+          "Copiar o codigo de barras para pagamento",
+          "Escolher a forma de pagamento",
+          "Agendar debito automatico, se quiser"
+        ],
+        "fechamento": "Seu atendimento foi registrado. Posso ajudar com mais alguma coisa?"
+      }
+    },
+
+    {
+      "id": "SUPORTE_TECNICO",
+      "nome": "Suporte tecnico",
+      "descricao": "Falha ou instabilidade em internet, TV ou sinal movel. Pode gerar abertura de chamado.",
+      "sensivel": false,
+      "regras": [
+        "sem internet",
+        "sem sinal",
+        "luz vermelha",
+        "internet caindo",
+        "internet lenta",
+        "nao conecta"
+      ],
+      "exemplos": [
+        "minha internet ta caindo toda hora",
+        "minha net nao funciona",
+        "internet lenta demais",
+        "to sem sinal aqui",
+        "meu roteador ta com luz vermelha",
+        "a tv nao ta pegando os canais",
+        "minha internet caiu agora",
+        "nao consigo conectar no wifi",
+        "ja reiniciei o roteador e continua ruim",
+        "ta sem internet aqui em casa",
+        "o sinal ta oscilando muito",
+        "minha banda larga ta pessima",
+        "internet travando toda hora",
+        "meu celular nao pega sinal da claro",
+        "a net cai e volta o tempo todo"
+      ],
+      "destino": "FLUXO_SUPORTE_TECNICO",
+      "diagnostico": {
+        "perguntas": [
+          "A instabilidade e em todos os dispositivos ou so em um?",
+          "O roteador esta com alguma luz vermelha ou piscando?"
+        ]
+      },
+      "roteiro": {
+        "reconhecimento": "Voce esta com um problema de conexao.",
+        "resumo": "Vou iniciar uma verificacao remota e, se necessario, abrir um chamado tecnico.",
+        "passos": [
+          "Verificacao remota da sua conexao (1 a 2 minutos)",
+          "Caso nao resolva automaticamente, abrimos um chamado tecnico",
+          "Se necessario, um tecnico pode ser agendado para visita em 24-48h",
+          "Voce acompanha tudo pelo App Minha Claro em 'Meus Chamados'"
+        ],
+        "fechamento": "Deseja que eu abra o chamado agora?"
+      }
+    },
+
+    {
+      "id": "PLANO",
+      "nome": "Mudanca de plano",
+      "descricao": "INTENCAO AMBIGUA POR NATUREZA. Cliente quer mudar de plano mas nao disse a direcao. Sempre dispara clarificacao, mesmo com score alto.",
+      "sensivel": false,
+      "sempre_clarificar": true,
+      "regras": [
+        "mudar de plano",
+        "trocar de plano",
+        "mudar meu plano",
+        "alterar meu plano"
+      ],
+      "exemplos": [
+        "quero mudar meu plano",
+        "trocar de plano",
+        "meu plano ta ruim",
+        "quero outro plano",
+        "como faco pra mudar de plano",
+        "queria rever meu plano",
+        "meu plano nao ta me atendendo",
+        "mudar plano",
+        "quero alterar meu pacote",
+        "to pensando em trocar de plano",
+        "quero ver outros planos pra mim",
+        "posso mudar meu plano",
+        "quero um plano diferente",
+        "alterar meu plano atual",
+        "da pra trocar o plano que eu tenho"
+      ],
+      "clarificacao": {
+        "pergunta": "Posso te ajudar com a mudanca do seu plano! Para te direcionar melhor, me diga: voce quer",
+        "opcoes": [
+          {
+            "id": "upgrade",
+            "label": "Fazer um upgrade (mais dados, velocidade ou canais)",
+            "destino": "FLUXO_COMERCIAL_UPGRADE",
+            "exemplos": ["quero um plano maior", "mais dados", "quero mais velocidade", "upgrade", "o de 60gb"]
+          },
+          {
+            "id": "economia",
+            "label": "Verificar planos mais economicos",
+            "destino": "FLUXO_COMERCIAL_ECONOMIA",
+            "exemplos": ["quero pagar menos", "algo mais barato", "quero economizar", "reduzir o valor"]
+          },
+          {
+            "id": "catalogo",
+            "label": "Ver todas as opcoes disponiveis para o meu perfil",
+            "destino": "FLUXO_COMERCIAL_CATALOGO",
+            "exemplos": ["quero ver tudo", "me mostra as opcoes", "quais tem disponivel"]
+          }
+        ]
+      },
+      "destino": "FLUXO_COMERCIAL_CATALOGO",
+      "roteiro": {
+        "reconhecimento": "Voce quer mudar seu plano.",
+        "resumo": "Vou te encaminhar para a area segura de 'Meu Plano'.",
+        "passos": [
+          "Confirmar a troca com seu CPF",
+          "Ver a data de vigencia da mudanca",
+          "Autorizar o ajuste na fatura"
+        ],
+        "fechamento": "A alteracao e imediata e a nova cobranca aparece na proxima fatura."
+      }
+    },
+
+    {
+      "id": "COMPRA",
+      "nome": "Contratacao de servico",
+      "descricao": "Prospect ou cliente querendo contratar algo novo. Jornada comercial de aquisicao, nao de mudanca.",
+      "sensivel": false,
+      "regras": [
+        "quero contratar",
+        "quero assinar",
+        "portabilidade",
+        "tem cobertura"
+      ],
+      "exemplos": [
+        "quero contratar internet",
+        "quanto custa a claro na minha regiao",
+        "quero assinar a claro",
+        "tem cobertura no meu endereco",
+        "quero contratar tv por assinatura",
+        "queria uma linha nova",
+        "quanto custa o plano de fibra",
+        "quero fazer portabilidade pra claro",
+        "gostaria de contratar um plano",
+        "quais planos voces tem disponivel",
+        "quero adicionar um servico na minha conta",
+        "queria colocar internet em casa",
+        "como faco pra ser cliente claro",
+        "quero comprar um chip",
+        "tem promocao de fibra"
+      ],
+      "destino": "FLUXO_VENDAS",
+      "roteiro": {
+        "reconhecimento": "Voce quer contratar um servico da Claro.",
+        "resumo": "Vou te levar para o catalogo de planos, onde voce consulta cobertura e valores.",
+        "passos": [
+          "Consultar disponibilidade no seu endereco",
+          "Comparar os planos disponiveis na sua regiao",
+          "Simular o valor mensal",
+          "Iniciar a contratacao online"
+        ],
+        "fechamento": "Se preferir falar com um consultor, posso te encaminhar."
+      }
+    },
+
+    {
+      "id": "ATENDIMENTO",
+      "nome": "Pedido explicito de atendimento humano",
+      "descricao": "Cliente pediu para falar com uma pessoa. Nao confundir com saudacao vaga, que deve cair em confianca baixa.",
+      "sensivel": false,
+      "regras": [
+        "falar com atendente",
+        "falar com humano",
+        "falar com uma pessoa",
+        "central de atendimento"
+      ],
+      "exemplos": [
+        "quero falar com um atendente",
+        "me passa pra uma pessoa",
+        "quero falar com alguem de verdade",
+        "falar com humano",
+        "quero conversar com um atendente",
+        "me transfere pro atendimento",
+        "central de atendimento",
+        "nao quero falar com robo",
+        "quero suporte com uma pessoa",
+        "me passa pro suporte humano",
+        "tem algum atendente disponivel",
+        "preciso falar com um consultor",
+        "quero atendimento pessoal",
+        "me conecta com um atendente",
+        "nao consigo resolver por aqui quero uma pessoa"
+      ],
+      "destino": "ATENDIMENTO_HUMANO",
+      "roteiro": {
+        "reconhecimento": "Voce quer falar com um atendente.",
+        "resumo": "Vou te conectar com um especialista da Claro.",
+        "passos": [
+          "Seu contexto sera enviado ao atendente",
+          "Voce nao precisara repetir sua solicitacao"
+        ],
+        "fechamento": "Posso te transferir agora?"
+      }
+    },
+
+    {
+      "id": "COBRANCA_INDEVIDA",
+      "nome": "Contestacao de cobranca",
+      "descricao": "SENSIVEL. Cliente contesta cobranca ou pede estorno. Curto-circuita o classificador comum e vai direto para escalacao humana com contexto.",
+      "sensivel": true,
+      "motivo_sensibilidade": "Exige analise de conta, autorizacao especial e possivel processamento financeiro. Fora da alcada do assistente.",
+      "regras": [
+        "cobranca indevida",
+        "cobrança indevida",
+        "estorno",
+        "reembolso",
+        "procon",
+        "nao contratei",
+        "não contratei",
+        "nunca contratei",
+        "nao reconheco",
+        "não reconheço"
+      ],
+      "exemplos": [
+        "fui cobrado por algo que eu nunca contratei",
+        "quero estorno de uma cobranca",
+        "tem uma cobranca que eu nao reconheco",
+        "me cobraram um servico que eu nunca pedi",
+        "quero meu dinheiro de volta",
+        "cobranca indevida na minha fatura",
+        "assinaram um servico sem minha autorizacao",
+        "to sendo cobrado errado ha meses",
+        "quero cancelar e ser ressarcido",
+        "isso e cobranca indevida",
+        "nunca contratei esse servico e ta na minha conta",
+        "quero reembolso do que me cobraram",
+        "vou no procon se nao resolverem isso",
+        "me cobraram duas vezes o mesmo valor",
+        "debitaram um valor errado no meu cartao"
+      ],
+      "destino": "ESCALACAO_HUMANA",
+      "roteiro": {
+        "reconhecimento": "Voce esta contestando uma cobranca e lamento pelo transtorno.",
+        "resumo": "Cobrancas indevidas exigem analise detalhada da conta e autorizacao especial para estorno. Vou te conectar com um especialista humano.",
+        "passos": [
+          "Analisar o historico completo da sua conta",
+          "Identificar a cobranca contestada",
+          "Processar o estorno diretamente, se aplicavel"
+        ],
+        "fechamento": "Seu contexto ja foi enviado ao atendente. Voce nao precisara repetir sua solicitacao."
+      }
+    }
+  ]
+}

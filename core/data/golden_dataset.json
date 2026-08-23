@@ -1,0 +1,116 @@
+{
+  "versao": "1.0.0",
+  "atualizado_em": "2026-08-19",
+  "_sobre": "Conjunto de avaliacao do classificador de intencao do Claro Guia Inteligente. Usado por core/evaluate.py para medir acuracia, matriz de confusao e capacidade de rejeicao.",
+
+  "_metodologia": {
+    "disjuncao": "Nenhuma frase deste arquivo aparece nos exemplos de treino do flows.json. Verificado programaticamente. Reutilizar frase de treino no teste infla a acuracia e invalida a metrica.",
+    "duas_metricas": [
+      "ACURACIA DE INTENCAO - sobre os 70 casos com intencao esperada. Mede se o classificador acerta a categoria.",
+      "ACURACIA DE REJEICAO - sobre os 8 casos NAO_IDENTIFICADA. Mede se o classificador tem a humildade de NAO classificar quando a mensagem e vaga. Um classificador que responde tudo com confianca alta e pior que um que sabe pedir esclarecimento."
+    ],
+    "dificuldade": {
+      "facil": "Vocabulario proximo dos exemplos de treino. Espera-se acerto com confianca alta.",
+      "medio": "Sinonimos, giria ou construcao indireta. Espera-se acerto, talvez com confianca menor.",
+      "dificil": "Fronteira genuina entre duas intencoes. Erro aqui e informativo, nao vergonhoso - documentar na analise."
+    },
+    "criterio_de_sucesso": {
+      "acuracia_intencao_minima": 0.80,
+      "acuracia_rejeicao_minima": 0.75,
+      "observacao": "Metas de referencia para o MVP academico, nao benchmark de industria. Reportar o valor real obtido, seja qual for."
+    },
+    "pares_de_confusao_esperados": [
+      "FATURA x COBRANCA_INDEVIDA - a diferenca e intencao de contestar, nao o assunto",
+      "PLANO x COMPRA - mudar o que ja tenho x contratar algo novo",
+      "SUPORTE_TECNICO x PLANO - 'velocidade abaixo do contratado' pode ser falha ou inadequacao de plano"
+    ]
+  },
+
+  "casos": [
+    { "texto": "esse mes minha conta ficou bem mais alta", "esperado": "FATURA", "dificuldade": "facil" },
+    { "texto": "nao entendi pq to pagando mais", "esperado": "FATURA", "dificuldade": "medio" },
+    { "texto": "teve algum reajuste na minha mensalidade", "esperado": "FATURA", "dificuldade": "medio" },
+    { "texto": "porque q ta vindo esse valor", "esperado": "FATURA", "dificuldade": "facil" },
+    { "texto": "minha mensalidade mudou sem avisar", "esperado": "FATURA", "dificuldade": "dificil", "nota": "Tom de reclamacao, mas nao contesta cobranca especifica nem pede estorno. Deve ficar em FATURA." },
+    { "texto": "queria conferir os itens da minha conta", "esperado": "FATURA", "dificuldade": "facil" },
+    { "texto": "ta vindo mais caro que o combinado", "esperado": "FATURA", "dificuldade": "dificil", "nota": "Fronteira com COBRANCA_INDEVIDA. Nao ha mencao a servico nao contratado nem pedido de devolucao." },
+    { "texto": "o que compoe o valor da minha fatura", "esperado": "FATURA", "dificuldade": "facil" },
+    { "texto": "minha conta de outubro veio estranha", "esperado": "FATURA", "dificuldade": "medio" },
+    { "texto": "quanto eu devo esse mes", "esperado": "FATURA", "dificuldade": "dificil", "nota": "Fronteira com SEGUNDA_VIA. Pergunta o valor, nao pede o documento." },
+
+    { "texto": "manda o boleto ai por favor", "esperado": "SEGUNDA_VIA", "dificuldade": "facil" },
+    { "texto": "preciso reimprimir a fatura", "esperado": "SEGUNDA_VIA", "dificuldade": "facil" },
+    { "texto": "onde baixo o pdf da conta", "esperado": "SEGUNDA_VIA", "dificuldade": "facil" },
+    { "texto": "esqueci de pagar e joguei o boleto fora", "esperado": "SEGUNDA_VIA", "dificuldade": "medio" },
+    { "texto": "como consigo o codigo pra pagar", "esperado": "SEGUNDA_VIA", "dificuldade": "medio" },
+    { "texto": "quero pagar hj mas nao acho a fatura", "esperado": "SEGUNDA_VIA", "dificuldade": "medio" },
+    { "texto": "me envia a conta de novo", "esperado": "SEGUNDA_VIA", "dificuldade": "facil" },
+    { "texto": "nao veio nada no correio esse mes", "esperado": "SEGUNDA_VIA", "dificuldade": "dificil", "nota": "Intencao implicita: a palavra fatura nem aparece." },
+    { "texto": "duplicata da fatura", "esperado": "SEGUNDA_VIA", "dificuldade": "medio" },
+    { "texto": "preciso do documento pra pagar no banco", "esperado": "SEGUNDA_VIA", "dificuldade": "medio" },
+
+    { "texto": "ta tudo fora do ar aqui", "esperado": "SUPORTE_TECNICO", "dificuldade": "facil" },
+    { "texto": "wifi nao conecta de jeito nenhum", "esperado": "SUPORTE_TECNICO", "dificuldade": "facil" },
+    { "texto": "video fica travando toda hora no streaming", "esperado": "SUPORTE_TECNICO", "dificuldade": "medio" },
+    { "texto": "o modem ta piscando laranja", "esperado": "SUPORTE_TECNICO", "dificuldade": "medio" },
+    { "texto": "sinal some de madrugada", "esperado": "SUPORTE_TECNICO", "dificuldade": "medio" },
+    { "texto": "faz 2 dias que to sem net", "esperado": "SUPORTE_TECNICO", "dificuldade": "facil" },
+    { "texto": "a velocidade ta muito abaixo do contratado", "esperado": "SUPORTE_TECNICO", "dificuldade": "dificil", "nota": "Pode ser falha tecnica ou plano inadequado. Tratar como suporte: diagnostico vem antes de venda." },
+    { "texto": "meu decodificador nao liga", "esperado": "SUPORTE_TECNICO", "dificuldade": "medio" },
+    { "texto": "internet oscila quando chove", "esperado": "SUPORTE_TECNICO", "dificuldade": "medio" },
+    { "texto": "nao pega sinal nenhum no meu aparelho", "esperado": "SUPORTE_TECNICO", "dificuldade": "facil" },
+
+    { "texto": "queria repensar meu pacote", "esperado": "PLANO", "dificuldade": "medio" },
+    { "texto": "meu plano ta caro pro que eu uso", "esperado": "PLANO", "dificuldade": "dificil", "nota": "Sugere economia, mas a intencao classificada continua PLANO. A direcao e resolvida na clarificacao, nao no classificador." },
+    { "texto": "da pra migrar pra outro plano", "esperado": "PLANO", "dificuldade": "facil" },
+    { "texto": "to insatisfeito com meu plano atual", "esperado": "PLANO", "dificuldade": "medio" },
+    { "texto": "quero contratar mais dados", "esperado": "PLANO", "dificuldade": "dificil", "nota": "O verbo contratar puxa para COMPRA, mas o objeto e o plano existente. Par de confusao classico." },
+    { "texto": "existe plano melhor pra mim", "esperado": "PLANO", "dificuldade": "medio" },
+    { "texto": "quero fazer uma mudanca no meu pacote", "esperado": "PLANO", "dificuldade": "facil" },
+    { "texto": "meu plano acaba os dados no meio do mes", "esperado": "PLANO", "dificuldade": "medio" },
+    { "texto": "posso subir de plano", "esperado": "PLANO", "dificuldade": "facil" },
+    { "texto": "queria dar uma olhada em mudar de plano", "esperado": "PLANO", "dificuldade": "facil" },
+
+    { "texto": "quero por fibra optica na minha casa", "esperado": "COMPRA", "dificuldade": "facil" },
+    { "texto": "voces atendem no meu bairro", "esperado": "COMPRA", "dificuldade": "medio" },
+    { "texto": "to querendo trocar de operadora pra claro", "esperado": "COMPRA", "dificuldade": "medio", "nota": "A palavra trocar puxa para PLANO, mas trocar de OPERADORA e aquisicao." },
+    { "texto": "quanto sai o combo de internet e tv", "esperado": "COMPRA", "dificuldade": "facil" },
+    { "texto": "queria uma segunda linha pro meu filho", "esperado": "COMPRA", "dificuldade": "medio" },
+    { "texto": "sou novo cliente como funciona", "esperado": "COMPRA", "dificuldade": "medio" },
+    { "texto": "tem plano pra empresa", "esperado": "COMPRA", "dificuldade": "medio" },
+    { "texto": "quero saber valores pra contratar", "esperado": "COMPRA", "dificuldade": "facil" },
+    { "texto": "gostaria de instalar internet", "esperado": "COMPRA", "dificuldade": "facil" },
+    { "texto": "vim do concorrente quero assinar", "esperado": "COMPRA", "dificuldade": "medio" },
+
+    { "texto": "queria falar com alguem do suporte", "esperado": "ATENDIMENTO", "dificuldade": "facil" },
+    { "texto": "tem como me passar pra um humano", "esperado": "ATENDIMENTO", "dificuldade": "facil" },
+    { "texto": "nao quero mais falar com bot", "esperado": "ATENDIMENTO", "dificuldade": "facil" },
+    { "texto": "preciso de um atendente urgente", "esperado": "ATENDIMENTO", "dificuldade": "facil" },
+    { "texto": "me liga um consultor", "esperado": "ATENDIMENTO", "dificuldade": "medio" },
+    { "texto": "quero protocolo de atendimento humano", "esperado": "ATENDIMENTO", "dificuldade": "medio" },
+    { "texto": "chama alguem ai por favor", "esperado": "ATENDIMENTO", "dificuldade": "medio" },
+    { "texto": "so resolvo isso com uma pessoa", "esperado": "ATENDIMENTO", "dificuldade": "medio" },
+    { "texto": "atendente", "esperado": "ATENDIMENTO", "dificuldade": "facil", "nota": "Mensagem de uma palavra. Testa se a camada de regras pega antes dos embeddings." },
+    { "texto": "quero ser atendido por gente", "esperado": "ATENDIMENTO", "dificuldade": "facil" },
+
+    { "texto": "apareceu um servico na conta que eu nao pedi", "esperado": "COBRANCA_INDEVIDA", "dificuldade": "facil" },
+    { "texto": "quero contestar essa cobranca", "esperado": "COBRANCA_INDEVIDA", "dificuldade": "facil" },
+    { "texto": "isso e um absurdo cobrando errado de mim", "esperado": "COBRANCA_INDEVIDA", "dificuldade": "medio" },
+    { "texto": "paguei e continua cobrando", "esperado": "COBRANCA_INDEVIDA", "dificuldade": "medio" },
+    { "texto": "quero cancelar e receber de volta o valor", "esperado": "COBRANCA_INDEVIDA", "dificuldade": "medio" },
+    { "texto": "assinatura que eu nunca autorizei", "esperado": "COBRANCA_INDEVIDA", "dificuldade": "facil" },
+    { "texto": "vou acionar o consumidor gov se nao resolver", "esperado": "COBRANCA_INDEVIDA", "dificuldade": "medio", "nota": "Sinal forte de sensibilidade sem citar procon. A regra deve cobrir variacoes." },
+    { "texto": "cobraram uma taxa que ninguem me avisou", "esperado": "COBRANCA_INDEVIDA", "dificuldade": "dificil", "nota": "Fronteira com FATURA. O que decide e o tom de contestacao." },
+    { "texto": "duplicaram a cobranca do mes passado", "esperado": "COBRANCA_INDEVIDA", "dificuldade": "medio" },
+    { "texto": "me devolvam o dinheiro dessa cobranca", "esperado": "COBRANCA_INDEVIDA", "dificuldade": "facil" },
+
+    { "texto": "oi", "esperado": "NAO_IDENTIFICADA", "dificuldade": "facil", "nota": "Deve cair abaixo do limiar medio e disparar pergunta aberta." },
+    { "texto": "bom dia", "esperado": "NAO_IDENTIFICADA", "dificuldade": "facil" },
+    { "texto": "preciso de ajuda", "esperado": "NAO_IDENTIFICADA", "dificuldade": "medio", "nota": "Tentador classificar como ATENDIMENTO. Nao pede pessoa, pede ajuda generica." },
+    { "texto": "tudo bem", "esperado": "NAO_IDENTIFICADA", "dificuldade": "facil" },
+    { "texto": "voce pode me ajudar", "esperado": "NAO_IDENTIFICADA", "dificuldade": "medio" },
+    { "texto": "alo", "esperado": "NAO_IDENTIFICADA", "dificuldade": "facil" },
+    { "texto": "tenho uma duvida", "esperado": "NAO_IDENTIFICADA", "dificuldade": "medio" },
+    { "texto": "me ajuda ai", "esperado": "NAO_IDENTIFICADA", "dificuldade": "medio" }
+  ]
+}
