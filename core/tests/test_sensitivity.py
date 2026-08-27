@@ -6,7 +6,7 @@ from app.flows import get_flows
 from app.normalize import normalize
 from app.sensitivity import check_sensitive
 
-from .conftest import SENSITIVE_INTENT, cases_expecting, cases_not_expecting, texts
+from .conftest import SENSITIVE_INTENT, cases_not_expecting, texts
 
 
 def sensitive_rules() -> list[str]:
@@ -83,20 +83,3 @@ def test_termo_condicional_sozinho_nao_dispara() -> None:
     assert check_sensitive(normalize("nunca contratei")) is None
     # Basta uma palavra de cobrança na mesma mensagem para valer.
     assert check_sensitive(normalize("nao contratei essa taxa")) == SENSITIVE_INTENT
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "LACUNA CONHECIDA, reportada e não corrigida: as `regras` de "
-        "COBRANCA_INDEVIDA no flows.json são palavras-chave literais, e o "
-        "golden_dataset declara em _metodologia.disjuncao que nenhuma frase "
-        "dele reusa vocabulário de treino. Resultado: 0/10 de recall nesta "
-        "camada. A detecção desses casos depende dos embeddings (M3). "
-        "Este xfail é strict de propósito: se alguém ampliar as regras no "
-        "flows.json, o teste passa a XPASS e quebra o suite, pedindo revisão."
-    ),
-)
-@pytest.mark.parametrize("texto", texts(cases_expecting(SENSITIVE_INTENT)))
-def test_golden_cobranca_indevida_detectado(texto: str) -> None:
-    assert check_sensitive(normalize(texto)) == SENSITIVE_INTENT

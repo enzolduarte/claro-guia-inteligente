@@ -66,11 +66,14 @@ def test_frase_sem_palavra_chave_nao_casa() -> None:
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "LACUNA CONHECIDA, reportada e não corrigida: a regra 'quero contratar' "
+        "LIMITACAO PERMANENTE, medida e documentada. A regra 'quero contratar' "
         "(COMPRA) dispara em 'quero contratar mais dados', que o golden_dataset "
-        "rotula PLANO e marca como par de confusão clássico. Como a etapa 2 "
-        "devolve 0.97, o caso nunca chega aos embeddings do M3. Corrigir exige "
-        "mexer nas `regras` do flows.json, o que este módulo não pode fazer."
+        "rotula PLANO. Verificado no M3: tirar a regra NAO resolveria — os "
+        "embeddings tambem respondem COMPRA (0.628). As duas camadas concordam "
+        "entre si e discordam do rotulo, porque o verbo 'contratar' puxa para "
+        "aquisicao enquanto o objeto ('mais dados') e o plano que ja existe. O "
+        "proprio golden chama isso de par de confusao classico. Nao ha correcao "
+        "sem mudar o rotulo ou os exemplos, e nenhum dos dois compensa."
     ),
 )
 def test_contratar_mais_dados_deveria_ser_plano() -> None:

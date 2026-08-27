@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import pytest
+
 from app.config import CORE_DIR
 
 GOLDEN_PATH = CORE_DIR / "data" / "golden_dataset.json"
@@ -24,3 +26,12 @@ def cases_not_expecting(intent_id: str) -> list[dict[str, Any]]:
 
 def texts(cases: list[dict[str, Any]]) -> list[str]:
     return [case["texto"] for case in cases]
+
+
+@pytest.fixture(scope="session")
+def modelo_carregado() -> None:
+    """Carrega o modelo uma vez por sessão de teste — leva alguns segundos."""
+    from app.embeddings import is_ready, load_model
+
+    if not is_ready():
+        load_model()

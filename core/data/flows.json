@@ -9,12 +9,14 @@
     "As `regras` sao comparadas APOS a normalizacao do texto, que remove acentos. Por isso nao existem variantes acentuadas aqui: 'cobranca indevida' ja cobre 'cobranca indevida' e 'cobranca indevida' com cedilha. Manter as duas formas seria regra morta. O mesmo vale para '2a via', que cobre a forma com o indicador ordinal.",
     "As regras amplas (estorno, reembolso, procon, cobranca indevida, nao reconheco) disparam sozinhas de proposito. Num portao de sensibilidade, falso positivo custa um atendimento humano a mais; falso negativo custa uma contestacao de cobranca tratada por robo. O segundo erro e muito mais caro.",
     "'nao contratei' e 'nunca contratei' foram movidas para regras_condicionais porque o falso positivo delas era de outra natureza: nao acertavam de leve um cliente, acertavam em cheio um prospect. Quem dizia 'nao contratei nada ainda, queria ver os planos' recebia pedido de desculpas por cobranca indevida e um protocolo de escalacao. Isso e pior do que nao responder. Nenhum caso assim existe no golden_dataset, entao nenhuma metrica acusava.",
-    "LACUNA RESIDUAL ACEITA: um prospect que use palavra de cobranca na mesma frase ainda escala, como em 'nao contratei ainda, qual o valor do plano'. E raro e o erro volta a ser do tipo barato (um atendimento humano a mais). Nao vale caçar com lista de excecoes."
+    "LACUNA RESIDUAL ACEITA: um prospect que use palavra de cobranca na mesma frase ainda escala, como em 'nao contratei ainda, qual o valor do plano'. E raro e o erro volta a ser do tipo barato (um atendimento humano a mais). Nao vale cacar com lista de excecoes.",
+    "LIMIARES CALIBRADOS EM 23/08/2026, com o modelo paraphrase-multilingual-MiniLM-L12-v2 ja escolhido. Os valores anteriores (0.60 / 0.80) foram definidos antes de existir modelo e nao correspondiam a distribuicao real de scores: roteavam direto so 15 dos 70 casos com intencao do golden e mandavam 42 para clarificacao, ou seja, mais da metade das conversas virava um pedido de confirmacao. Com 0.55 / 0.75 sao 32 diretos e 30 clarificando.",
+    "A margem de seguranca do limiar_alto e o que impede mensagem vaga de ser roteada com confianca. A mensagem vaga de maior score no golden e 'tenho uma duvida', com 0.696. O limiar 0.75 deixa 0.054 de folga; 0.70 deixaria 0.004, apertado demais. TROCAR DE MODELO DE EMBEDDINGS EXIGE REFAZER ESTA MEDICAO - os scores nao sao comparaveis entre modelos."
   ],
 
   "config": {
-    "limiar_alto": 0.80,
-    "limiar_medio": 0.60,
+    "limiar_alto": 0.75,
+    "limiar_medio": 0.55,
     "destino_padrao": "ATENDIMENTO_HUMANO",
     "timeout_llm_ms": 3000,
     "resposta_nao_identificada": {

@@ -1,16 +1,17 @@
-"""Orquestra o pipeline de classificação: normalize → sensibilidade → regras.
+"""Orquestra o pipeline de classificação: sensibilidade → regras → embeddings.
 
 `classify` é uma função pura: sem I/O, sem log, sem banco. Ela lê o catálogo já
 carregado em memória e devolve um resultado — quem persiste ou responde é outro.
 É isso que permite reusá-la no fallback e testá-la sem subir a aplicação.
 
-Etapa 3 (embeddings) entra no M3, entre `match_rules` e o retorno vazio.
+A cascata completa é: sensibilidade → regras → embeddings → banda.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from . import embeddings
 from .contract import ConfidenceBand, ConfidenceSource
 from .flows import get_config
 from .normalize import normalize
@@ -61,11 +62,36 @@ def classify(texto: str) -> ClassificationResult:
             is_sensitive=False,
         )
 
-    # M3: etapa 3 (embeddings) entra aqui. Sem ela, nada mais a tentar.
+    scored = embeddings.score(texto)
+    if scored is None:
+        # Sem modelo carregado: degrada para as camadas determinísticas.
+        return ClassificationResult(
+            intent=None,
+            confidence=0.0,
+            band=ConfidenceBand.BAIXO,
+            source=ConfidenceSource.NENHUMA,
+            is_sensitive=False,
+        )
+
+    intent_id, similarity = scored
+    band = band_for(similarity)
+
+    # Etapa 3a do CLAUDE.md: banda BAIXA não identifica intenção, dispara a
+    # pergunta aberta. O score é preservado para a telemetria enxergar quão
+    # perto ficou.
+    if band is ConfidenceBand.BAIXO:
+        return ClassificationResult(
+            intent=None,
+            confidence=similarity,
+            band=band,
+            source=ConfidenceSource.EMBEDDING,
+            is_sensitive=False,
+        )
+
     return ClassificationResult(
-        intent=None,
-        confidence=0.0,
-        band=ConfidenceBand.BAIXO,
-        source=ConfidenceSource.NENHUMA,
+        intent=intent_id,
+        confidence=similarity,
+        band=band,
+        source=ConfidenceSource.EMBEDDING,
         is_sensitive=False,
     )

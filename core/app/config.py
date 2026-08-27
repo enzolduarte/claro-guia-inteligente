@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""  # vazio → adaptador não sobe (não afeta o core)
     db_path: str = "./data/telemetria.db"
     flows_path: str = "./data/flows.json"
-    embedding_model: str = ""  # definido no M2
+    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     llm_timeout_ms: int = 3000
     core_timeout_ms: int = 2500
 

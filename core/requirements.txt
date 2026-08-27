@@ -1,5 +1,11 @@
+# torch pelo índice de CPU: o wheel padrão traz CUDA e passa de 2 GB sem uso aqui.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 fastapi==0.115.6
 uvicorn==0.34.0
 pydantic==2.10.4
 pydantic-settings==2.7.0
+numpy==2.5.2
+torch==2.13.0+cpu
+sentence-transformers==6.0.0
 pytest==8.3.4

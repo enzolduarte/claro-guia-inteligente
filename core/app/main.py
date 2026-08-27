@@ -9,7 +9,9 @@ from typing import Any, AsyncIterator
 from fastapi import FastAPI
 
 from .classifier import classify
+from .embeddings import load_model
 from .contract import (
+    ConfidenceBand,
     InterpretRequest,
     InterpretResponse,
     ReplySource,
@@ -34,7 +36,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # flows.json inválido derruba o boot de propósito: erro de base de
     # conhecimento aparece no deploy, não no atendimento.
     init_flows()
-    # M2: carregar o modelo de embeddings e pré-computar a matriz do catálogo aqui.
+    # Modelo de embeddings e matriz do catálogo: uma vez só, aqui.
+    load_model()
     yield
 
 
@@ -88,7 +91,15 @@ def interpret(payload: InterpretRequest) -> InterpretResponse:
     def elapsed_ms() -> int:
         return int((time.perf_counter() - started) * 1000)
 
-    if result.intent is None:
+    # TRAVA PROVISÓRIA — o M4 remove isto ao implementar CLARIFICANDO.
+    # A etapa 3c do CLAUDE.md diz que banda MÉDIA pede confirmação, não roteia.
+    # Sem a máquina de estados não há como pedir confirmação, e rotear assim
+    # mesmo manda mensagem vaga para escalação humana com protocolo aberto
+    # ("oi" pontua 0,68 contra COBRANCA_INDEVIDA). Até lá, banda média cai na
+    # pergunta aberta: perde alguns acertos, não inventa nenhum atendimento.
+    aguarda_clarificacao = result.band is ConfidenceBand.MEDIO
+
+    if result.intent is None or aguarda_clarificacao:
         fallback = config.resposta_nao_identificada
         suggestions = "\n".join(f"• {item}" for item in fallback.sugestoes)
         return InterpretResponse(
