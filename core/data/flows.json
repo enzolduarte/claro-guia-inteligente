@@ -5,7 +5,11 @@
   "_avisos": [
     "As URLs sao ILUSTRATIVAS e nao foram verificadas. Confirmar ou substituir por placeholders antes da gravacao do video.",
     "O Documento de Visao lista 6 categorias de intencao. Aqui existem 7: COBRANCA_INDEVIDA foi promovida a intencao propria porque o Documento de Arquitetura ja a trata como tal (Cenario 4, score 0,88). Alinhar essa contagem no documento final.",
-    "Saudacoes vagas ('oi', 'bom dia', 'preciso de ajuda') NAO estao em nenhuma lista de exemplos. Elas devem cair em confianca baixa e disparar a pergunta aberta, conforme a tabela do Documento de Arquitetura."
+    "Saudacoes vagas ('oi', 'bom dia', 'preciso de ajuda') NAO estao em nenhuma lista de exemplos. Elas devem cair em confianca baixa e disparar a pergunta aberta, conforme a tabela do Documento de Arquitetura.",
+    "As `regras` sao comparadas APOS a normalizacao do texto, que remove acentos. Por isso nao existem variantes acentuadas aqui: 'cobranca indevida' ja cobre 'cobranca indevida' e 'cobranca indevida' com cedilha. Manter as duas formas seria regra morta. O mesmo vale para '2a via', que cobre a forma com o indicador ordinal.",
+    "As regras amplas (estorno, reembolso, procon, cobranca indevida, nao reconheco) disparam sozinhas de proposito. Num portao de sensibilidade, falso positivo custa um atendimento humano a mais; falso negativo custa uma contestacao de cobranca tratada por robo. O segundo erro e muito mais caro.",
+    "'nao contratei' e 'nunca contratei' foram movidas para regras_condicionais porque o falso positivo delas era de outra natureza: nao acertavam de leve um cliente, acertavam em cheio um prospect. Quem dizia 'nao contratei nada ainda, queria ver os planos' recebia pedido de desculpas por cobranca indevida e um protocolo de escalacao. Isso e pior do que nao responder. Nenhum caso assim existe no golden_dataset, entao nenhuma metrica acusava.",
+    "LACUNA RESIDUAL ACEITA: um prospect que use palavra de cobranca na mesma frase ainda escala, como em 'nao contratei ainda, qual o valor do plano'. E raro e o erro volta a ser do tipo barato (um atendimento humano a mais). Nao vale caçar com lista de excecoes."
   ],
 
   "config": {
@@ -147,10 +151,8 @@
       "sensivel": false,
       "regras": [
         "2a via",
-        "2ª via",
         "segunda via",
         "codigo de barras",
-        "código de barras",
         "gerar boleto"
       ],
       "exemplos": [
@@ -389,16 +391,43 @@
       "motivo_sensibilidade": "Exige analise de conta, autorizacao especial e possivel processamento financeiro. Fora da alcada do assistente.",
       "regras": [
         "cobranca indevida",
-        "cobrança indevida",
         "estorno",
         "reembolso",
         "procon",
-        "nao contratei",
-        "não contratei",
-        "nunca contratei",
-        "nao reconheco",
-        "não reconheço"
+        "nao reconheco"
       ],
+      "regras_condicionais": {
+        "_sobre": "Termos que sozinhos sao ambiguos. 'nao contratei' tanto abre uma contestacao ('nao contratei esse servico e ta na minha conta') quanto descreve um prospect ('nao contratei nada ainda, queria ver os planos'). So escalam quando a mensagem tambem traz uma palavra do universo de cobranca.",
+        "termos": [
+          "nao contratei",
+          "nunca contratei"
+        ],
+        "exige_contexto": [
+          "cobranca",
+          "cobrancas",
+          "cobrado",
+          "cobrada",
+          "cobraram",
+          "cobrando",
+          "cobrou",
+          "conta",
+          "fatura",
+          "valor",
+          "valores",
+          "debito",
+          "debitaram",
+          "cartao",
+          "servico",
+          "servicos",
+          "taxa",
+          "mensalidade",
+          "boleto",
+          "pagamento",
+          "paguei",
+          "dinheiro",
+          "assinatura"
+        ]
+      },
       "exemplos": [
         "fui cobrado por algo que eu nunca contratei",
         "quero estorno de uma cobranca",

@@ -49,6 +49,13 @@ class Diagnosis(BaseModel):
     perguntas: list[str]
 
 
+class ConditionalRules(BaseModel):
+    """Termos ambíguos sozinhos: só valem acompanhados de uma palavra de contexto."""
+
+    termos: list[str]
+    exige_contexto: list[str]
+
+
 class Intent(BaseModel):
     id: str
     nome: str
@@ -62,6 +69,7 @@ class Intent(BaseModel):
     motivo_sensibilidade: str | None = None
     clarificacao: Clarification | None = None
     diagnostico: Diagnosis | None = None
+    regras_condicionais: ConditionalRules | None = None
 
 
 class UnidentifiedReply(BaseModel):
