@@ -28,16 +28,22 @@ _model: SentenceTransformer | None = None
 _catalog: np.ndarray | None = None  # (n_exemplos, dim), L2-normalizada
 _intent_ids: np.ndarray | None = None  # (n_exemplos,), paralelo à matriz
 
+# Exemplos das opções de clarificação, uma matriz por intenção que clarifica.
+# Pré-computados no boot pelo mesmo motivo do catálogo principal: resolver a
+# escolha do usuário não pode custar um encode de catálogo por mensagem.
+_option_catalogs: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+
 
 def load_model() -> None:
     """Carrega o modelo e pré-computa a matriz do catálogo. Chamado no lifespan."""
     global _model, _catalog, _intent_ids
 
     model = SentenceTransformer(settings.embedding_model)
+    flows = get_flows()
 
     examples: list[str] = []
     intent_ids: list[str] = []
-    for intent in get_flows().intencoes:
+    for intent in flows.intencoes:
         for example in intent.exemplos:
             examples.append(example)
             intent_ids.append(intent.id)
@@ -49,9 +55,34 @@ def load_model() -> None:
         show_progress_bar=False,
     )
 
+    option_catalogs: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for intent in flows.intencoes:
+        if intent.clarificacao is None:
+            continue
+        option_texts: list[str] = []
+        option_ids: list[str] = []
+        for option in intent.clarificacao.opcoes:
+            for example in option.exemplos:
+                option_texts.append(example)
+                option_ids.append(option.id)
+        if not option_texts:
+            continue
+        option_matrix = model.encode(
+            option_texts,
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+            show_progress_bar=False,
+        )
+        option_catalogs[intent.id] = (
+            np.ascontiguousarray(option_matrix, dtype=np.float32),
+            np.array(option_ids),
+        )
+
     _model = model
     _catalog = np.ascontiguousarray(matrix, dtype=np.float32)
     _intent_ids = np.array(intent_ids)
+    _option_catalogs.clear()
+    _option_catalogs.update(option_catalogs)
 
 
 def is_ready() -> bool:
@@ -85,3 +116,24 @@ def score(texto: str) -> tuple[str, float] | None:
     similarities = _catalog @ query.astype(np.float32)
     best = int(np.argmax(similarities))
     return str(_intent_ids[best]), float(similarities[best])
+
+
+def score_options(intent_id: str, texto: str) -> tuple[str, float] | None:
+    """(option_id, similaridade) contra os exemplos das opções da intenção.
+
+    None quando o modelo não está carregado ou a intenção não tem clarificação.
+    """
+    catalog = _option_catalogs.get(intent_id)
+    if _model is None or catalog is None:
+        return None
+
+    matrix, option_ids = catalog
+    query = _model.encode(
+        [texto],
+        normalize_embeddings=True,
+        convert_to_numpy=True,
+        show_progress_bar=False,
+    )[0]
+    similarities = matrix @ query.astype(np.float32)
+    best = int(np.argmax(similarities))
+    return str(option_ids[best]), float(similarities[best])
