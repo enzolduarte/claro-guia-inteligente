@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import random
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 from typing import Any, AsyncIterator
 
 from fastapi import FastAPI
@@ -20,12 +18,11 @@ from .contract import (
     State,
 )
 from .embeddings import load_model
+from .routing import resolve as resolver_destino
 from .flows import (
-    Destination,
     Intent,
     Script,
     get_config,
-    get_destination,
     get_flows,
     get_intent,
     init_flows,
@@ -59,39 +56,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Claro Guia Inteligente — Core", version=VERSION, lifespan=lifespan)
 
 
-def _protocol(prefix: str) -> str:
-    """M5 move isto para routing.py junto com o resto do motor de roteamento."""
-    return f"{prefix}-{datetime.now(timezone.utc).year}-{random.randint(10000, 99999)}"
-
-
 def _render_script(script: Script) -> str:
     """Texto canônico do roteiro. M6 passa isto ao Gemini para reescrever no tom."""
     steps = "\n".join(f"{i}. {step}" for i, step in enumerate(script.passos, 1))
     return f"{script.reconhecimento} {script.resumo}\n\n{steps}\n\n{script.fechamento}"
-
-
-def _routing_for(destination_id: str) -> tuple[str, Routing]:
-    """Catálogo fechado: sem destino mapeado, cai no padrão. Nunca inferir."""
-    destination = get_destination(destination_id)
-    if destination is None:
-        destination_id = get_config().destino_padrao
-        destination = get_destination(destination_id)
-        assert destination is not None  # validado no boot
-
-    return destination_id, _build_routing(destination_id, destination)
-
-
-def _build_routing(destination_id: str, destination: Destination) -> Routing:
-    return Routing(
-        destination=destination_id,
-        label=destination.label,
-        url=destination.url,
-        protocol=(
-            _protocol(destination.prefixo_protocolo)
-            if destination.gera_protocolo and destination.prefixo_protocolo
-            else None
-        ),
-    )
 
 
 @app.get("/health")
@@ -151,7 +119,12 @@ def _decidir_com_intencao(
     if resultado.is_sensitive:
         STORE.transicionar(sessao, State.ESCALANDO)
         return _resposta_de_destino(
-            sessao, payload, intent, intent.destino, resultado, elapsed_ms
+            sessao,
+            payload,
+            intent,
+            resolver_destino(intent_id=intent.id),
+            resultado,
+            elapsed_ms,
         )
 
     # ETAPA 3b — sempre_clarificar vem ANTES da checagem de banda. A ambiguidade
@@ -184,7 +157,12 @@ def _decidir_com_intencao(
     STORE.transicionar(sessao, State.RESPONDENDO)
     STORE.transicionar(sessao, State.ROTEANDO)
     return _resposta_de_destino(
-        sessao, payload, intent, intent.destino, resultado, elapsed_ms
+        sessao,
+        payload,
+        intent,
+        resolver_destino(intent_id=intent.id),
+        resultado,
+        elapsed_ms,
     )
 
 
@@ -225,10 +203,9 @@ def _resolver_clarificacao(
         sessao.clarify_attempts += 1
         if sessao.clarify_attempts >= MAX_TENTATIVAS_CLARIFICACAO:
             # Duas tentativas e nada. Insistir irrita; um humano resolve.
-            destino = get_config().destino_padrao
             sessao.fechar_clarificacao()
             STORE.transicionar(sessao, State.ROTEANDO)
-            return _resposta_de_atendimento_humano(sessao, payload, destino, elapsed_ms)
+            return _resposta_de_atendimento_humano(sessao, payload, elapsed_ms)
         return _repetir_opcoes(sessao, payload, elapsed_ms)
 
     if sessao.clarification_kind == CONFIRMACAO and escolhido == "nao":
@@ -266,7 +243,14 @@ def _resolver_clarificacao(
         source=ConfidenceSource.REGRA,
         is_sensitive=intent.sensivel,
     )
-    return _resposta_de_destino(sessao, payload, intent, destino, resolvido, elapsed_ms)
+    return _resposta_de_destino(
+        sessao,
+        payload,
+        intent,
+        resolver_destino(intent_id=intent.id, option_destination=destino),
+        resolvido,
+        elapsed_ms,
+    )
 
 
 def _destino_da_opcao(intent: Intent, opcao_id: str) -> str:
@@ -304,11 +288,10 @@ def _resposta_de_destino(
     sessao: Session,
     payload: InterpretRequest,
     intent: Intent,
-    destination_id: str,
+    routing: Routing,
     resultado: ClassificationResult,
     elapsed_ms: Any,
 ) -> InterpretResponse:
-    _, routing = _routing_for(destination_id)
     return InterpretResponse(
         session_id=payload.session_id,
         state=sessao.state,
@@ -325,9 +308,8 @@ def _resposta_de_destino(
 
 
 def _resposta_de_atendimento_humano(
-    sessao: Session, payload: InterpretRequest, destination_id: str, elapsed_ms: Any
+    sessao: Session, payload: InterpretRequest, elapsed_ms: Any
 ) -> InterpretResponse:
-    _, routing = _routing_for(destination_id)
     return InterpretResponse(
         session_id=payload.session_id,
         state=sessao.state,
@@ -341,7 +323,7 @@ def _resposta_de_atendimento_humano(
         ),
         reply_source=ReplySource.FALLBACK,
         options=None,
-        routing=routing,
+        routing=resolver_destino(),
         latency_ms=elapsed_ms(),
     )
 
