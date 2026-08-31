@@ -9,4 +9,4 @@ numpy==2.5.2
 torch==2.13.0+cpu
 sentence-transformers==6.0.0
 pytest==8.3.4
-httpx==0.28.1  # so para o TestClient do FastAPI nos testes de conversa
+httpx==0.28.1  # chamada ao Gemini e TestClient do FastAPI

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
@@ -18,10 +19,10 @@ from .contract import (
     State,
 )
 from .embeddings import load_model
+from .generator import generate
 from .routing import resolve as resolver_destino
 from .flows import (
     Intent,
-    Script,
     get_config,
     get_flows,
     get_intent,
@@ -56,10 +57,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Claro Guia Inteligente — Core", version=VERSION, lifespan=lifespan)
 
 
-def _render_script(script: Script) -> str:
-    """Texto canônico do roteiro. M6 passa isto ao Gemini para reescrever no tom."""
-    steps = "\n".join(f"{i}. {step}" for i, step in enumerate(script.passos, 1))
-    return f"{script.reconhecimento} {script.resumo}\n\n{steps}\n\n{script.fechamento}"
+def _redigir(
+    intent: Intent, routing: Routing, sessao: Session
+) -> tuple[str, ReplySource]:
+    """Ponte entre o handler síncrono e a única etapa assíncrona do pipeline.
+
+    O handler é `def` de propósito (seção 8 do CLAUDE.md): o trabalho pesado é
+    CPU-bound e roda no threadpool do FastAPI. Nessa thread não há event loop,
+    então `asyncio.run` pode criar o seu para esperar a chamada de rede.
+    """
+    anteriores = [turno.texto for turno in sessao.history]
+    return asyncio.run(generate(intent, routing, intent.roteiro, anteriores))
 
 
 @app.get("/health")
@@ -292,6 +300,7 @@ def _resposta_de_destino(
     resultado: ClassificationResult,
     elapsed_ms: Any,
 ) -> InterpretResponse:
+    texto, origem = _redigir(intent, routing, sessao)
     return InterpretResponse(
         session_id=payload.session_id,
         state=sessao.state,
@@ -299,8 +308,8 @@ def _resposta_de_destino(
         confidence=resultado.confidence,
         confidence_band=resultado.band,
         confidence_source=resultado.source,
-        reply=_render_script(intent.roteiro),
-        reply_source=ReplySource.TEMPLATE,
+        reply=texto,
+        reply_source=origem,
         options=None,
         routing=routing,
         latency_ms=elapsed_ms(),

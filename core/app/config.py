@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     core_url: str = "http://localhost:8000"
     gemini_api_key: str = ""  # vazia → modo determinístico
+    gemini_model: str = "gemini-flash-lite-latest"
     telegram_bot_token: str = ""  # vazio → adaptador não sobe (não afeta o core)
     db_path: str = "./data/telemetria.db"
     flows_path: str = "./data/flows.json"
