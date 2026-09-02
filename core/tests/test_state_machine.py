@@ -227,3 +227,41 @@ def test_session_id_e_opaco_para_o_nucleo() -> None:
     """O núcleo não interpreta o canal — a string é só uma chave."""
     sessao = Session(session_id="qualquercoisa-sem-dois-pontos")
     assert sessao.state is State.AGUARDANDO
+
+
+# ------------------------------------------ regressão: ruído não é escolha
+
+
+@pytest.mark.parametrize(
+    "ruido", ["ola", "oi", "obrigado", "talvez", "hmm", "certo", "bom dia", "xyzabc"]
+)
+def test_cumprimento_nao_conta_como_escolha(client: TestClient, ruido: str) -> None:
+    """Bug encontrado em 30/08/2026 numa conversa real.
+
+    Quem digitava "ola" durante a clarificação do PLANO tinha o destino
+    "catálogo" escolhido em seu nome, com confiança 1,00. A similaridade sozinha
+    aceitava qualquer texto curto (0,665 para "ola", 0,704 para "obrigado").
+    Agora é preciso score alto E margem clara sobre a segunda opção.
+    """
+    falar(client, "quero mudar meu plano", sessao="web:ruido")
+    corpo = falar(client, ruido, sessao="web:ruido")
+    assert corpo["state"] == "CLARIFICANDO", f"{ruido!r} virou escolha de destino"
+    assert corpo["routing"] is None
+
+
+@pytest.mark.parametrize(
+    "escolha,destino",
+    [
+        ("quero pagar menos", "FLUXO_COMERCIAL_ECONOMIA"),
+        ("mais velocidade", "FLUXO_COMERCIAL_UPGRADE"),
+        ("todas as opcoes", "FLUXO_COMERCIAL_CATALOGO"),
+    ],
+)
+def test_escolha_de_verdade_continua_resolvendo(
+    client: TestClient, escolha: str, destino: str
+) -> None:
+    """O aperto no critério não pode ter matado o caso bom."""
+    falar(client, "quero mudar meu plano", sessao="web:bom")
+    corpo = falar(client, escolha, sessao="web:bom")
+    assert corpo["state"] == "ROTEANDO"
+    assert corpo["routing"]["destination"] == destino

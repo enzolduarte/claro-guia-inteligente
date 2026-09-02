@@ -22,8 +22,20 @@ from datetime import datetime, timedelta, timezone
 
 from .contract import Option, State
 from .embeddings import score_options
-from .flows import Intent, get_config
+from .flows import Intent
 from .normalize import normalize
+
+# Para aceitar uma escolha por semelhança, os DOIS critérios têm que passar.
+# Medido em 30/08/2026 sobre as opções do PLANO, com o modelo em uso:
+#   escolhas de verdade ("quero pagar menos", "mais velocidade", ...):
+#       score mínimo 0,773  ·  margem mínima 0,328
+#   ruído ("ola", "obrigado", "talvez", "hmm", "certo", "sim"):
+#       score máximo 0,704  ·  margem máxima 0,250
+# Sem a margem, "obrigado" virava escolha de plano com 0,704 — o sistema
+# fechava um destino que o cliente nunca pediu. TROCAR DE MODELO EXIGE REFAZER
+# ESTA MEDIÇÃO: os números não são comparáveis entre modelos.
+SCORE_MINIMO_DA_ESCOLHA = 0.72
+MARGEM_MINIMA_DA_ESCOLHA = 0.28
 
 TTL = timedelta(minutes=30)
 MAX_TENTATIVAS_CLARIFICACAO = 2
@@ -178,10 +190,14 @@ def resolver_escolha(sessao: Session, texto: str) -> str | None:
     pontuado = score_options(sessao.pending_intent, texto)
     if pontuado is None:
         return None
-    opcao_id, similaridade = pontuado
-    if opcao_id in ids and similaridade >= get_config().limiar_medio:
-        return opcao_id
-    return None
+
+    opcao_id, similaridade, margem = pontuado
+    escolheu = (
+        opcao_id in ids
+        and similaridade >= SCORE_MINIMO_DA_ESCOLHA
+        and margem >= MARGEM_MINIMA_DA_ESCOLHA
+    )
+    return opcao_id if escolheu else None
 
 
 def _resolver_sim_nao(normalizado: str, ids: list[str]) -> str | None:
@@ -210,10 +226,13 @@ def opcoes_de_confirmacao() -> list[Option]:
     ]
 
 
-def texto_da_clarificacao(intent: Intent, opcoes: list[Option]) -> str:
-    pergunta = intent.clarificacao.pergunta if intent.clarificacao else ""
-    itens = "\n".join(f"{i}. {o.label}" for i, o in enumerate(opcoes, 1))
-    return f"{pergunta}\n\n{itens}".strip()
+def texto_da_clarificacao(intent: Intent) -> str:
+    """Só a pergunta. As alternativas viajam no campo `options` do contrato.
+
+    Enumerar no texto duplicava o que a interface já mostra como botões, e era
+    o que dava à conversa cara de menu de URA.
+    """
+    return intent.clarificacao.pergunta if intent.clarificacao else ""
 
 
 def texto_da_confirmacao(intent: Intent) -> str:

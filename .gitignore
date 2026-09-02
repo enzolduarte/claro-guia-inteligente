@@ -17,7 +17,8 @@ out/
 *.key
 
 # Dados
-data/*.db
+# 'data/*.db' com barra fica preso na raiz e nao pegava core/data/.
+*.db
 *.sqlite3
 
 # Sistema

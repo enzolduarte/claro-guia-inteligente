@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from app.config import CORE_DIR
+from app.config import CORE_DIR, settings
 
 GOLDEN_PATH = CORE_DIR / "data" / "golden_dataset.json"
 
@@ -35,3 +35,28 @@ def modelo_carregado() -> None:
 
     if not is_ready():
         load_model()
+
+
+@pytest.fixture(autouse=True)
+def sem_llm_por_padrao(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A suíte nunca fala com a API do Gemini de verdade.
+
+    Sem isto, ter uma chave no core/.env deixa os testes lentos (mais de um
+    segundo por chamada), instáveis (dependem da rede) e caros (queimam cota).
+    Quem precisa do caminho generativo liga a chave no próprio teste — é o que
+    o test_generator faz — e substitui a chamada de rede por um dublê.
+    """
+    monkeypatch.setattr(settings, "gemini_api_key", "", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def texto_redigido_limpo() -> None:
+    """Zera o cache do generator entre os testes.
+
+    Em produção o cache é o que faz o texto ser redigido uma vez por intenção.
+    Na suíte ele esconderia falhas: depois de um teste gerar com sucesso, os
+    seguintes receberiam o valor guardado e nunca chegariam ao dublê.
+    """
+    from app.generator import limpar_cache
+
+    limpar_cache()

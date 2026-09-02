@@ -118,8 +118,12 @@ def score(texto: str) -> tuple[str, float] | None:
     return str(_intent_ids[best]), float(similarities[best])
 
 
-def score_options(intent_id: str, texto: str) -> tuple[str, float] | None:
-    """(option_id, similaridade) contra os exemplos das opções da intenção.
+def score_options(intent_id: str, texto: str) -> tuple[str, float, float] | None:
+    """(option_id, similaridade, margem) da opção mais próxima.
+
+    A margem é a distância para a segunda opção mais bem pontuada. Ela é o que
+    distingue uma escolha de verdade de um ruído: quem escolhe fica claramente
+    mais perto de UMA opção, enquanto um "olá" fica morno com todas.
 
     None quando o modelo não está carregado ou a intenção não tem clarificação.
     """
@@ -135,5 +139,14 @@ def score_options(intent_id: str, texto: str) -> tuple[str, float] | None:
         show_progress_bar=False,
     )[0]
     similarities = matrix @ query.astype(np.float32)
-    best = int(np.argmax(similarities))
-    return str(option_ids[best]), float(similarities[best])
+
+    # Melhor score de cada opção, não de cada exemplo: opções com mais exemplos
+    # não podem levar vantagem só por terem mais bilhetes na rifa.
+    por_opcao = {
+        opcao: float(similarities[option_ids == opcao].max())
+        for opcao in dict.fromkeys(option_ids.tolist())
+    }
+    ordenado = sorted(por_opcao.items(), key=lambda item: item[1], reverse=True)
+    melhor, score = ordenado[0]
+    segundo = ordenado[1][1] if len(ordenado) > 1 else 0.0
+    return melhor, score, score - segundo

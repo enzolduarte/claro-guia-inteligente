@@ -51,8 +51,10 @@ def com_chave() -> Iterator[None]:
     settings.gemini_api_key = original
 
 
-def redigir(intent, routing) -> tuple[str, ReplySource]:
-    return asyncio.run(generate(intent, routing, intent.roteiro))
+def redigir(intent, routing=None) -> tuple[str, ReplySource]:
+    """`routing` fica na assinatura só para os testes lerem melhor: o gerador
+    não o recebe mais, porque o roteamento deixou de entrar no prompt."""
+    return asyncio.run(generate(intent, intent.roteiro))
 
 
 # ------------------------------------------------------- os três cenários
@@ -113,7 +115,7 @@ def test_routing_e_identico_nos_tres_cenarios(intent, monkeypatch) -> None:
             monkeypatch.setattr(generator, "_chamar_gemini", responde)
 
         routing = resolve(intent_id=INTENT_ID)
-        _, origem = asyncio.run(generate(intent, routing, intent.roteiro))
+        _, origem = asyncio.run(generate(intent, intent.roteiro))
         resultados.append((routing.destination, routing.label, routing.url, origem))
 
     settings.gemini_api_key = ""
@@ -151,13 +153,49 @@ def test_texto_com_dado_inventado_e_descartado(
     assert texto == render_canonical(intent.roteiro)
 
 
-def test_texto_que_repete_a_url_correta_passa(
-    com_chave, intent, routing, monkeypatch
-) -> None:
+def test_ate_a_url_correta_e_recusada(com_chave, intent, routing, monkeypatch) -> None:
+    """O roteamento não entra no prompt, então o texto não deve citá-lo.
+
+    A interface mostra endereço e protocolo ao lado da resposta. Repetir na
+    prosa polui, e — como o modelo não recebeu esse dado — significa que ele
+    inventou, ainda que por acaso tenha acertado.
+    """
     assert routing.url is not None
 
     async def responde(*_a, **_k):
         return f"Vou te encaminhar. Acesse {routing.url} para acompanhar."
+
+    monkeypatch.setattr(generator, "_chamar_gemini", responde)
+    assert redigir(intent, routing)[1] is ReplySource.TEMPLATE
+
+
+@pytest.mark.parametrize(
+    "vazamento",
+    [
+        "Destino: Diagnostico Tecnico\nVou te ajudar.",
+        "Resumo: vou abrir um chamado para você.",
+        "Protocolo: guarde este número.",
+    ],
+)
+def test_estrutura_do_prompt_vazando_e_recusada(
+    com_chave, intent, routing, monkeypatch, vazamento: str
+) -> None:
+    """O roteiro chega rotulado para o modelo se orientar; a pessoa não vê isso."""
+
+    async def responde(*_a, **_k):
+        return vazamento
+
+    monkeypatch.setattr(generator, "_chamar_gemini", responde)
+    assert redigir(intent, routing)[1] is ReplySource.TEMPLATE
+
+
+def test_prosa_limpa_passa(com_chave, intent, routing, monkeypatch) -> None:
+    async def responde(*_a, **_k):
+        return (
+            "Eu entendo que você está com um problema de conexão.\n"
+            "Vou iniciar uma verificação remota agora mesmo.\n"
+            "Deseja que eu abra o chamado?"
+        )
 
     monkeypatch.setattr(generator, "_chamar_gemini", responde)
     assert redigir(intent, routing)[1] is ReplySource.GENERATIVE
@@ -189,7 +227,8 @@ def test_instrucao_proibe_inventar_e_limita_o_tamanho() -> None:
     instrucao = generator.INSTRUCAO_DE_SISTEMA.format(max_linhas=generator.MAX_LINHAS)
     for exigencia in [
         "Nunca invente",  # nada de passo, URL, valor, prazo ou protocolo
-        "Nunca altere",  # os dados fixos são literais
+        "NUNCA use rótulos",  # a estrutura do roteiro não pode vazar
+        "NUNCA escreva endereço",  # a interface já mostra endereço e protocolo
         f"{generator.MAX_LINHAS} linhas",  # limite de tamanho
         "login",  # não prometer o que exige autenticação
     ]:
