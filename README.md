@@ -1,552 +1,609 @@
 # Claro Guia Inteligente
 
-Assistente de roteamento conversacional para os canais digitais da Claro.
-O cliente escreve o que precisa com as próprias palavras e o sistema o encaminha
-ao fluxo de atendimento correto.
+Assistente de roteamento conversacional para os canais digitais da Claro. O
+cliente escreve o que precisa com as próprias palavras e o sistema o encaminha
+ao fluxo de atendimento correto, no site ou no Telegram, com a mesma decisão nos
+dois. **Ele roteia, não resolve:** entende o pedido, escolhe o destino e explica
+o próximo passo, sem emitir boleto, trocar plano nem estornar cobrança.
 
 > Protótipo acadêmico. Challenge 2026 · FIAP 4SI · Time Adamanto AI.
 > Dados e valores fictícios, sem vínculo com a Claro S.A.
-
-**Ele roteia, não resolve.** Não emite boleto, não troca plano, não estorna
-cobrança. Ele entende o pedido, decide o destino e explica o próximo passo.
-
-![Arquitetura do Claro Guia Inteligente](docs/arquitetura.svg)
-
-O diagrama acima é gerado a partir de uma especificação versionada em
-[`docs/arquitetura.json`](docs/arquitetura.json). A versão interativa, com tema
-claro e escuro, modo apresentação, exportação de imagem e quatro recortes
-guiados, está em [`docs/arquitetura.html`](docs/arquitetura.html): baixe e abra
-o arquivo no navegador.
 
 ---
 
 ## Índice
 
-- [O que já funciona](#o-que-já-funciona)
-- [Como rodar](#como-rodar)
-  - [1. Pré-requisitos](#1-pré-requisitos)
-  - [2. Instalação](#2-instalação)
-  - [3. Subir o sistema](#3-subir-o-sistema)
-  - [4. Conferir se está no ar](#4-conferir-se-está-no-ar)
-- [Outras formas de executar](#outras-formas-de-executar)
-  - [Conversar pelo terminal](#conversar-pelo-terminal)
-  - [Conversar pelo Telegram](#conversar-pelo-telegram)
-  - [Rodar os testes](#rodar-os-testes)
-  - [Avaliar o classificador](#avaliar-o-classificador)
-  - [Medir a latência](#medir-a-latência)
-  - [Popular o painel](#popular-o-painel)
-  - [Regerar o diagrama de arquitetura](#regerar-o-diagrama-de-arquitetura)
-  - [Diagnosticar o Gemini](#diagnosticar-o-gemini)
-- [Como o sistema decide](#como-o-sistema-decide)
-- [Arquitetura](#arquitetura)
-- [Configuração](#configuração)
-- [A API](#a-api)
-- [Estrutura de pastas](#estrutura-de-pastas)
-- [Resultados medidos](#resultados-medidos)
-- [Limites conhecidos](#limites-conhecidos)
+1. [O que é](#1-o-que-é)
+2. [Arquitetura](#2-arquitetura)
+3. [Pré-requisitos](#3-pré-requisitos)
+4. [Como rodar](#4-como-rodar)
+5. [Modo completo (opcional)](#5-modo-completo-opcional)
+6. [Variáveis de ambiente](#6-variáveis-de-ambiente)
+7. [Contrato da API](#7-contrato-da-api)
+8. [Como testar a classificação](#8-como-testar-a-classificação)
+9. [Requisitos atendidos](#9-requisitos-atendidos)
+10. [Estrutura do projeto](#10-estrutura-do-projeto)
+11. [Desenvolvimento](#11-desenvolvimento)
+12. [Problemas comuns](#12-problemas-comuns)
+13. [Limitações conhecidas](#13-limitações-conhecidas)
+14. [Time](#14-time)
 
 ---
 
-## O que já funciona
+## 1. O que é
 
-| | Implementado |
+Uma porta de entrada conversacional para os canais digitais da Claro: recebe uma
+mensagem em linguagem natural, descobre a intenção do cliente e o encaminha ao
+fluxo certo, com link e número de protocolo.
+
+Resolve a fragmentação em que o cliente sente que fala com "várias empresas"
+diferentes ao transitar entre site, aplicativo e atendimento, porque a decisão
+acontece **num lugar só** e vale para todos os canais.
+
+Sete intenções cobertas: fatura, segunda via, suporte técnico, troca de plano,
+compra, cobrança indevida e atendimento humano.
+
+---
+
+## 2. Arquitetura
+
+```
+   CANAIS                    NÚCLEO                      DESTINOS
+
+  Navegador                                          ┌─→ Fluxo financeiro
+      │                                              │
+      ↓                                              ├─→ Segunda via
+  ┌────────┐                ┌──────────────┐         │
+  │  web   │───────────────→│              │         ├─→ Suporte técnico
+  │  BFF   │  /v1/interpret │    core      │         │
+  └────────┘                │              │────────→├─→ Comercial: upgrade,
+                            │  1 sensível  │         │   economia, catálogo
+  ┌────────┐                │  2 regras    │         │
+  │telegram│───────────────→│  3 embedding │         ├─→ Vendas
+  │adapter │  /v1/interpret │  4 rota      │         │
+  └────────┘                │  5 redação   │         └─→ Escalação humana
+      ↑                     │  6 registro  │
+      │                     └──────┬───────┘
+  Telegram                         │
+                            ┌──────┴───────┐
+                            │ flows.json   │  base de conhecimento
+                            │ telemetria   │  volume `dados`
+                            └──────────────┘
+```
+
+Três containers. **Só o `web` publica porta.** O navegador nunca fala com o
+núcleo: toda chamada passa pelo servidor do Next.js, que conhece o endereço
+interno da rede do compose.
+
+| Container | Stack | Papel | Porta | Imagem |
+|---|---|---|---|---|
+| `core` | Python 3.13 · FastAPI | classificação, estado, roteamento, redação, telemetria | 8000, interna | 2,7 GB |
+| `web` | Node 20 · Next.js 14 | portal, painel e BFF | **3000, exposta** | 223 MB |
+| `telegram` | Python 3.13 | adaptador por long polling, opcional | nenhuma | 193 MB |
+
+A diferença de tamanho não é acidente: o `core` carrega o PyTorch e o modelo de
+similaridade, e os outros dois **não têm uma linha de código de aprendizado de
+máquina**. É a separação entre cérebro e canais, visível na balança.
+
+O diagrama completo está em [`docs/arquitetura.svg`](docs/arquitetura.svg). A
+versão interativa, com tema claro e escuro, modo apresentação e quatro recortes
+guiados, está em [`docs/arquitetura.html`](docs/arquitetura.html): baixe e abra
+no navegador.
+
+---
+
+## 3. Pré-requisitos
+
+**Docker 24 ou mais novo, com Docker Compose v2.** Nada além disso.
+
+```bash
+docker --version && docker compose version
+```
+
+Não é preciso instalar Python, Node, PyTorch nem criar conta em serviço nenhum.
+Tudo o que o sistema usa vai dentro das imagens.
+
+---
+
+## 4. Como rodar
+
+```bash
+git clone https://github.com/enzolduarte/claro-guia-inteligente.git
+cd claro-guia-inteligente
+docker compose up --build
+```
+
+Quando aparecer que os dois containers estão saudáveis, abra:
+
+- **http://localhost:3000** o portal, com o assistente na bolinha à direita
+- **http://localhost:3000/admin** o painel operacional
+
+> ### Roda sem nenhuma chave de API
+>
+> Os três comandos acima são tudo. **Não crie conta, não copie arquivo, não
+> configure nada.** Sem chave do Gemini o assistente responde com os textos
+> escritos no `flows.json`, e o roteamento, o destino, o link e o protocolo são
+> exatamente os mesmos: o modelo de linguagem é redator, nunca decisor. Sem
+> token do Telegram, o canal simplesmente não sobe.
+
+**Tempo esperado.** A primeira construção leva de **4 a 6 minutos**, porque
+baixa o PyTorch e o modelo de similaridade de 458 MB. É a única vez. Depois
+disso o sistema fica **saudável e atendendo em 17 segundos**, porque o modelo já
+está dentro da imagem e não é buscado na rede.
+
+Experimente escrever no assistente:
+
+| Frase | O que acontece |
 |---|---|
-| Classificação de mensagem em linguagem natural | sim, 7 intenções |
-| Pergunta de confirmação quando há ambiguidade | sim |
-| Roteamento com link e número de protocolo | sim |
-| Escalação para atendimento humano | sim |
-| Resposta reescrita por IA generativa | sim, Gemini (opcional) |
-| Funcionamento sem nenhuma chave de API | sim |
-| Registro de todas as interações | sim, SQLite |
-| Painel operacional com métricas | sim |
-| Interface web com assistente flutuante | sim |
-| Modo claro e escuro | sim |
-| Segundo canal em Telegram | sim, por long polling (opcional) |
-| Avaliação com dataset de referência | sim, `evaluate.py` |
+| `minha conta veio mais cara esse mês` | roteia para o detalhamento de fatura, com link |
+| `quero mudar meu plano` | aparecem três alternativas, porque o pedido é ambíguo |
+| `tem uma cobrança que eu não reconheço` | escala para especialista, com protocolo |
+| `oi` | pergunta aberta, sem chutar destino |
 
-Ainda **não** existe: empacotamento em Docker, autenticação e identidade de
-cliente entre canais.
+Para desligar: `Ctrl+C`, e depois `docker compose down`.
 
 ---
 
-## Como rodar
+## 5. Modo completo (opcional)
 
-### 1. Pré-requisitos
+Duas coisas que o sistema **não precisa** para funcionar, e que só valem a pena
+se você quiser ver a experiência completa.
 
-**Python 3.11 ou mais novo** e **Node 20 ou mais novo**.
+### 5.1 Respostas reescritas por IA generativa
 
-Se o `pip` ou o `venv` não estiverem disponíveis na sua máquina, instale o
-gerenciador `uv`, que não precisa de permissão de administrador:
+Sem isto, as respostas saem com os textos do `flows.json`, que são corretos mas
+sempre iguais. Com a chave, o Gemini reescreve o mesmo conteúdo num tom mais
+natural, **sem poder mudar o destino**.
 
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+**Passo 1.** Pegue uma chave gratuita em
+[aistudio.google.com/apikey](https://aistudio.google.com/apikey).
 
-Se não tiver Node, instale no seu usuário:
-
-```bash
-curl -fsSL https://nodejs.org/dist/v20.18.1/node-v20.18.1-linux-x64.tar.xz | tar -xJ -C ~/.local/node --strip-components=1
-```
-
-E deixe o terminal encontrá-lo:
+**Passo 2.** Copie o modelo de configuração:
 
 ```bash
-echo 'export PATH=$HOME/.local/node/bin:$PATH' >> ~/.bashrc && source ~/.bashrc
+cp .env.example .env
 ```
 
-### 2. Instalação
+**Passo 3.** Abra o `.env` e cole a chave na linha `GEMINI_API_KEY=`.
 
-O núcleo, em Python:
+**Passo 4.** Suba de novo:
 
 ```bash
-cd core && uv venv .venv && uv pip install -r requirements.txt --python .venv/bin/python
+docker compose up --build
 ```
 
-A primeira instalação baixa o PyTorch e leva alguns minutos.
+Para conferir se pegou, olhe o rodapé de uma resposta no painel: a origem passa
+de `template` para `generative`.
 
-A interface, em Node:
+### 5.2 Canal de Telegram
+
+**Passo 1.** No Telegram, procure o **@BotFather**, mande `/newbot` e escolha um
+nome. Ele devolve um token.
+
+**Passo 2.** Cole o token na linha `TELEGRAM_BOT_TOKEN=` do `.env`.
+
+**Passo 3.** Suba com o perfil do Telegram ligado:
 
 ```bash
-cd web && npm install
+docker compose --profile telegram up --build
 ```
 
-### 3. Subir o sistema
+**Passo 4.** Procure o seu bot no Telegram e mande uma mensagem.
 
-São dois processos. Abra **dois terminais**.
+Um bot de Telegram é público: quem descobrir o nome dele consegue conversar e
+gastar sua cota do Gemini. Para fechar só para você, veja o número do seu chat
+no registro do container (`chat=123456789`) e coloque em
+`TELEGRAM_ALLOWED_CHATS=` no `.env`.
 
-No primeiro, o núcleo:
-
-```bash
-cd core && .venv/bin/uvicorn app.main:app --port 8000
-```
-
-Na primeira execução ele baixa o modelo de embeddings, cerca de 460 MB. Depois
-disso o boot leva uns 7 segundos.
-
-No segundo, a interface:
-
-```bash
-cd web && npm run dev
-```
-
-Abra **http://localhost:3000**.
-
-### 4. Conferir se está no ar
-
-```bash
-curl -s localhost:8000/health
-```
-
-Resposta esperada:
-
-```json
-{"status":"ok","version":"0.1.0","flows_version":"1.0.0","intents_loaded":7,"textos_redigidos":"15/15"}
-```
-
-O campo `textos_redigidos` mostra o progresso da redação dos textos pelo Gemini,
-que roda em segundo plano assim que o servidor sobe. Enquanto não chega em
-`15/15`, algumas respostas saem no texto padrão do `flows.json`. Sem chave de
-API configurada, esse campo fica em `0/15` e o sistema usa sempre o texto padrão.
-
-**O sistema funciona sem nenhuma chave.** A chave do Gemini é opcional e só
-muda a redação das respostas, nunca o roteamento.
+O teste que importa: mande a **mesma frase** no site e no Telegram. O destino, o
+link e o rótulo têm que ser idênticos. É a proposta do projeto.
 
 ---
 
-## Outras formas de executar
+## 6. Variáveis de ambiente
 
-### Conversar pelo terminal
+Todas opcionais, todas com valor padrão. Ficam num arquivo `.env` na raiz, criado
+a partir do `.env.example`.
 
-Sem abrir o navegador, útil para testar rápido. Precisa do núcleo no ar.
+| Variável | Padrão | Quem lê | Para que serve |
+|---|---|---|---|
+| `GEMINI_API_KEY` | vazio | núcleo | sem ela, o sistema usa os textos do `flows.json` |
+| `GEMINI_MODEL` | `gemini-flash-lite-latest` | núcleo | modelo usado na redação |
+| `LLM_TIMEOUT_MS` | `8000` | núcleo | espera pela resposta do Gemini |
+| `EMBEDDING_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` | núcleo | modelo de similaridade |
+| `DB_PATH` | `/data/telemetria.db` no Docker, `./data/telemetria.db` fora | núcleo | banco da telemetria |
+| `FLOWS_PATH` | `./data/flows.json` | núcleo | base de conhecimento |
+| `TELEGRAM_BOT_TOKEN` | vazio | Telegram | sem ele, o canal não sobe |
+| `TELEGRAM_ALLOWED_CHATS` | vazio | Telegram | `chat_id` liberados, separados por vírgula |
+| `TELEGRAM_POLL_TIMEOUT_S` | `30` | Telegram | quanto tempo cada espera segura a conexão |
+| `CORE_URL` | `http://core:8000` | site e Telegram | onde achar o núcleo |
+| `CORE_TIMEOUT_MS` | `2500` | site e Telegram | espera pelo núcleo antes de desistir |
+| `WEB_PORT` | `3000` | compose | porta publicada, se a 3000 estiver ocupada |
 
-```bash
-cd core && .venv/bin/python scripts/chat.py
-```
+A coluna "quem lê" existe porque a divisão importa: o núcleo não conhece
+`CORE_URL` nem o token do bot, e o adaptador não conhece a chave do Gemini. Cada
+processo lê só o que é dele, e é o que mantém os canais finos.
 
-Mostra a resposta e, embaixo, o estado, a intenção, a confiança e a camada que
-decidiu. Comandos: `/nova` recomeça a sessão, `/json` mostra a resposta crua,
-`/sair` encerra.
-
-### Conversar pelo Telegram
-
-O mesmo assistente, num segundo canal real. É um processo separado que fica
-escutando o Telegram e conversa com o núcleo pela mesma API que o site usa.
-Precisa do núcleo no ar.
-
-**1. Criar o bot.** Fale com o [@BotFather](https://t.me/BotFather) dentro do
-Telegram, mande `/newbot`, escolha um nome e ele devolve um token.
-
-**2. Guardar o token** no mesmo `core/.env` onde já mora a chave do Gemini:
-
-```bash
-echo 'TELEGRAM_BOT_TOKEN=cole-o-token-aqui' >> core/.env
-```
-
-**3. Subir o adaptador**, num terminal só dele:
-
-```bash
-core/.venv/bin/python adapters/telegram/bot.py
-```
-
-Agora é só procurar o bot no Telegram e mandar uma mensagem. A resposta é a
-mesma que o site daria, com o mesmo destino: quem decide é o núcleo, e o
-adaptador só traduz o formato.
-
-Sem o token, o comando avisa e encerra sem erro. Isso é proposital: o sistema
-tem que rodar sem chave nenhuma, e a falta do token desliga só este canal.
-
-Um detalhe de segurança que vale saber: um bot de Telegram é público, então
-qualquer pessoa que descubra o nome dele consegue conversar e gastar sua cota do
-Gemini. Para liberar apenas você, mande uma mensagem qualquer, leia o número do
-chat no log e coloque em `core/.env`:
-
-```bash
-echo 'TELEGRAM_ALLOWED_CHATS=123456789' >> core/.env
-```
-
-Os detalhes de como o adaptador funciona por dentro, e como escrever um para
-outro canal, estão em [`adapters/README.md`](adapters/README.md).
-
-### Rodar os testes
-
-```bash
-cd core && .venv/bin/python -m pytest tests/ -q
-```
-
-São 243 testes. Eles não acessam a internet nem a API do Gemini: as chamadas de
-rede são substituídas por dublês, para a suíte ser rápida, estável e não gastar
-cota.
-
-### Avaliar o classificador
-
-Mede a qualidade contra o `golden_dataset.json`, um conjunto de 78 frases que
-não repete nenhum exemplo de treino.
-
-```bash
-cd core && .venv/bin/python evaluate.py
-```
-
-Imprime a acurácia global, por intenção e por dificuldade, a matriz de confusão,
-a lista dos casos errados e o tempo médio de classificação. Sai com erro se a
-acurácia cair abaixo de 70%.
-
-### Medir a latência
-
-```bash
-cd core && .venv/bin/python scripts/bench_classify.py
-```
-
-Roda 100 classificações e imprime a mediana e o percentil 95.
-
-### Popular o painel
-
-Cria 200 interações fictícias espalhadas por 14 dias, para o painel ter o que
-mostrar antes de existir uso real.
-
-```bash
-cd core && .venv/bin/python scripts/seed_telemetry.py
-```
-
-Toda linha criada assim fica marcada como sintética, e o painel a distingue
-visualmente do dado real. Para limpar depois:
-
-```bash
-cd core && .venv/bin/python -c "import sqlite3; c=sqlite3.connect('data/telemetria.db'); print('removidas:', c.execute('DELETE FROM interacoes WHERE simulado=1').rowcount); c.commit()"
-```
-
-### Regerar o diagrama de arquitetura
-
-O diagrama é produzido pelo [Archify](https://github.com/tt-a1i/archify), uma
-skill de agente que compila uma especificação JSON em HTML interativo e valida a
-geometria antes de entregar.
-
-```bash
-npx skills add tt-a1i/archify -g
-```
-
-Depois de editar `docs/arquitetura.json`:
-
-```bash
-node ~/.agents/skills/archify/bin/archify.mjs deliver architecture docs/arquitetura.json docs/arquitetura.html --quality showcase
-```
-
-A validação recusa a entrega se alguma linha cruzar um componente, se um rótulo
-encostar em outro ou se o texto ficar pequeno demais para ler numa tela de
-1440px. São nove checagens automáticas de composição.
-
-### Diagnosticar o Gemini
-
-O sistema esconde falhas do LLM de propósito: se a chamada falha, ele responde
-com o texto padrão e ninguém percebe. Isso é bom para o cliente e ruim para
-depurar. Este script chama a API sem a proteção, então o erro aparece inteiro.
-
-```bash
-cd core && .venv/bin/python scripts/testar_gemini.py
-```
+Quem também roda sem Docker pode manter as chaves em `core/.env`. O compose lê
+os dois arquivos, e `core/.env` vence, então não é preciso duplicar nada. Os
+dois estão no `.gitignore`.
 
 ---
 
-## Como o sistema decide
+## 7. Contrato da API
 
-Cada mensagem passa por uma cascata. A ordem importa e é obrigatória.
+Documentação interativa em **http://localhost:3000** para o cliente final e, em
+desenvolvimento, em `http://localhost:8000/docs` para a API crua.
 
-```
-mensagem do cliente
-      │
-      ├─ 0. Estava respondendo a uma pergunta?  ──► resolve a escolha ──► roteia
-      │
-      ├─ 1. Verificador de sensibilidade
-      │     palavras de contestação de cobrança ──► escala para humano, fim
-      │
-      ├─ 2. Regras de alta precisão
-      │     palavra-chave literal (confiança 0,97) ──► intenção definida
-      │
-      ├─ 3. Similaridade semântica
-      │     compara o sentido da frase com 105 exemplos
-      │     ├─ confiança baixa    ──► pergunta aberta
-      │     ├─ sempre_clarificar  ──► oferece opções
-      │     └─ confiança média    ──► pede confirmação
-      │
-      ├─ 4. Motor de roteamento
-      │     destino do flows.json; sem destino, vai para atendimento humano
-      │
-      ├─ 5. Geração ancorada
-      │     Gemini reescreve o roteiro pronto; se falhar, usa o texto padrão
-      │
-      └─ 6. Telemetria
-            grava a interação depois de a resposta já ter partido
-```
+### Requisição
 
-Duas regras que explicam o desenho:
-
-**A sensibilidade roda antes do classificador.** Uma contestação de cobrança
-nunca chega a ser interpretada por IA, porque exige análise de conta e
-autorização especial.
-
-**O LLM escreve, mas não decide.** O destino sai de código determinístico. O
-Gemini recebe o roteiro pronto e só o reescreve no tom da marca. Uma verificação
-automática descarta qualquer resposta em que ele tenha inventado endereço ou
-número de protocolo.
-
----
-
-## Arquitetura
-
-Dois processos obrigatórios, o núcleo e a web, mais o adaptador de Telegram
-quando esse canal está ligado. O diagrama completo está no
-[topo deste arquivo](#claro-guia-inteligente); a versão interativa em
-[`docs/arquitetura.html`](docs/arquitetura.html) traz quatro recortes guiados:
-o caminho de uma mensagem, a cascata de decisão, a degradação e a telemetria.
-
-**Só o `web` expõe porta ao usuário.** O navegador nunca fala com o núcleo:
-todas as chamadas passam pelo servidor do Next.js, que conhece o endereço
-interno. Verificamos que nem o endereço do núcleo nem a chave do Gemini
-aparecem no código enviado ao navegador.
-
-**O núcleo não sabe qual canal está falando com ele.** O identificador de sessão
-é uma string opaca no formato `canal:identificador`. Isso é o que permite o
-mesmo cérebro atender site, Telegram ou qualquer canal futuro, e é o que faz uma
-conversa iniciada no site poder continuar em outro canal.
-
-**Os adaptadores são finos de propósito.** Um canal só traduz formato: monta a
-chamada, desenha a resposta. Nenhuma decisão mora ali, e é isso que garante que
-a mesma frase produza o mesmo destino no site e no Telegram. Como escrever um
-canal novo está em [`adapters/README.md`](adapters/README.md).
-
-### Degradação em três níveis
-
-O usuário nunca vê erro.
-
-| Nível | Quando | O que acontece |
-|---|---|---|
-| 1 | tudo no ar | classificação completa e texto reescrito pelo Gemini |
-| 2 | Gemini falha ou demora | texto padrão do `flows.json`; roteamento intacto |
-| 3 | núcleo não responde em 2,5s | o `web` classifica por regras locais e responde |
-
-Para ver o nível 3 funcionando: derrube o núcleo com `Ctrl+C` e continue
-conversando no site. As respostas seguem chegando, marcadas como `fallback`.
-
----
-
-## Configuração
-
-Tudo por variável de ambiente, com valor padrão. **Nada é obrigatório.**
-
-| Variável | Padrão | Para que serve |
-|---|---|---|
-| `CORE_URL` | `http://localhost:8000` | onde o `web` acha o núcleo |
-| `CORE_TIMEOUT_MS` | `2500` | espera do `web` pelo núcleo antes do fallback |
-| `GEMINI_API_KEY` | vazio | sem ela, o sistema usa os textos padrão |
-| `GEMINI_MODEL` | `gemini-flash-lite-latest` | modelo usado na redação |
-| `LLM_TIMEOUT_MS` | `8000` | espera pela resposta do Gemini |
-| `EMBEDDING_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` | modelo de similaridade |
-| `DB_PATH` | `./data/telemetria.db` | banco da telemetria |
-| `FLOWS_PATH` | `./data/flows.json` | base de conhecimento |
-| `TELEGRAM_BOT_TOKEN` | vazio | sem ele, o canal de Telegram não sobe |
-| `TELEGRAM_ALLOWED_CHATS` | vazio | `chat_id` liberados, separados por vírgula |
-| `TELEGRAM_POLL_TIMEOUT_S` | `30` | quanto tempo cada espera segura a conexão |
-
-Para usar o Gemini, crie `core/.env`:
-
-```bash
-echo 'GEMINI_API_KEY=sua-chave-aqui' > core/.env
-```
-
-O arquivo `.env` está no `.gitignore` e não vai para o repositório.
-
----
-
-## A API
-
-O núcleo publica documentação interativa em **http://localhost:8000/docs**,
-gerada a partir do próprio código.
-
-### `POST /v1/interpret`
-
-Interpreta uma mensagem e devolve o encaminhamento.
-
-```bash
-curl -s -X POST localhost:8000/v1/interpret \
-  -H 'Content-Type: application/json' \
-  -d '{"session_id":"web:abc","channel":"web","text":"quero a 2a via da fatura"}'
-```
-
-```json
+```jsonc
+POST /v1/interpret
 {
-  "session_id": "web:abc",
-  "state": "ROTEANDO",
-  "intent": "SEGUNDA_VIA",
-  "confidence": 0.97,
-  "confidence_band": "ALTO",
-  "confidence_source": "regra",
-  "reply": "Você precisa da segunda via da sua fatura...",
-  "reply_source": "generative",
-  "options": null,
-  "routing": {
-    "destination": "FLUXO_SEGUNDA_VIA",
-    "label": "Portal de Faturas Claro",
-    "url": "https://www.claro.com.br/minha-claro/segunda-via",
-    "protocol": null
-  },
-  "latency_ms": 14
+  // "{canal}:{id}". O núcleo trata como texto opaco: nunca separa o canal
+  // do id, nunca muda de comportamento por causa dele. Só precisa ser
+  // estável entre mensagens da mesma pessoa.
+  "session_id": "web:8f3a1c2e-4b7d-11f0-a1b2",
+  "channel": "web",                       // "web" | "telegram"
+  "text": "minha conta veio mais cara"
 }
 ```
 
-Os campos `options` e `routing` são sempre devolvidos. Ficam `null` quando não
-se aplicam, nunca ausentes.
+### Resposta
 
-| Campo | Valores | Significado |
-|---|---|---|
-| `state` | `AGUARDANDO`, `PROCESSANDO`, `CLARIFICANDO`, `RESPONDENDO`, `ROTEANDO`, `ESCALANDO`, `ENCERRADO` | onde a conversa está |
-| `confidence_band` | `ALTO`, `MEDIO`, `BAIXO` | faixa de confiança |
-| `confidence_source` | `regra`, `embedding`, `nenhuma` | qual camada decidiu |
-| `reply_source` | `generative`, `template`, `fallback` | de onde veio o texto |
+```jsonc
+{
+  "session_id": "web:8f3a1c2e-4b7d-11f0-a1b2",
 
-Quando o estado é `CLARIFICANDO`, o campo `options` traz as alternativas. O
-cliente pode responder com o `id` da opção, com o número dela ou escrevendo
-livremente.
+  // AGUARDANDO | PROCESSANDO | CLARIFICANDO | RESPONDENDO
+  // ROTEANDO   | ESCALANDO   | ENCERRADO
+  "state": "ROTEANDO",
 
-### `GET /v1/metrics`
+  "intent": "FATURA",                     // null quando não identificada
+  "confidence": 0.97,
+  "confidence_band": "ALTO",              // ALTO | MEDIO | BAIXO
+  "confidence_source": "regra",           // regra | embedding | nenhuma
 
-Agregados da telemetria: total, taxa de resolução digital, taxa de escalação,
-latência média, distribuição por intenção e por canal, série diária, cascata de
-decisão e as 20 últimas conversas. Separa dado real de dado sintético.
+  // Texto pronto para mostrar. Use como veio, sem reescrever.
+  "reply": "Se você tem dúvida sobre o valor da sua fatura...",
 
-### `GET /health`
+  // generative = reescrito pelo Gemini
+  // template   = texto do flows.json (o Gemini falhou ou não tem chave)
+  // fallback   = o núcleo não respondeu e o site classificou sozinho
+  "reply_source": "template",
 
-Estado do serviço, versão da base de conhecimento e progresso da redação.
+  // Preenchido quando state = CLARIFICANDO. Vire botões, lista numerada,
+  // o que o canal permitir. A escolha volta como `text` do turno seguinte,
+  // mandando o `id`.
+  "options": null,
+
+  // Preenchido quando state = ROTEANDO ou ESCALANDO.
+  "routing": {
+    "destination": "FLUXO_FINANCEIRO",
+    "label": "Detalhamento de Fatura",
+    "url": "https://www.claro.com.br/minha-claro/faturas",
+    "protocol": null                      // só em escalação para humano
+  },
+
+  "latency_ms": 12
+}
+```
+
+`options` e `routing` são **sempre presentes**, valendo `null` quando não se
+aplicam. Nunca são omitidos, então dá para checar direto sem se preocupar com
+chave faltando.
+
+Como escrever um adaptador para um canal novo:
+[`adapters/README.md`](adapters/README.md).
 
 ---
 
-## Estrutura de pastas
+## 8. Como testar a classificação
 
-```
-claro-guia-inteligente/
-├── core/                      núcleo em Python
-│   ├── app/
-│   │   ├── main.py            servidor e orquestração do pipeline
-│   │   ├── contract.py        contrato da API (Pydantic)
-│   │   ├── flows.py           carga e validação do flows.json
-│   │   ├── normalize.py       limpeza do texto
-│   │   ├── sensitivity.py     etapa 1: assuntos delicados
-│   │   ├── rules.py           etapa 2: palavras-chave
-│   │   ├── embeddings.py      etapa 3: similaridade semântica
-│   │   ├── classifier.py      orquestra as etapas 1 a 3
-│   │   ├── state_machine.py   sessão e fluxo de clarificação
-│   │   ├── routing.py         etapa 4: destino e protocolo
-│   │   ├── generator.py       etapa 5: Gemini com degradação
-│   │   └── telemetry.py       etapa 6: registro em SQLite
-│   ├── data/
-│   │   ├── flows.json         base de conhecimento
-│   │   └── golden_dataset.json  conjunto de avaliação
-│   ├── scripts/               ferramentas de linha de comando
-│   ├── tests/                 243 testes
-│   └── evaluate.py            avaliação do classificador
-├── adapters/                  canais que conversam com o núcleo
-│   ├── README.md              o contrato e como escrever um canal novo
-│   └── telegram/
-│       └── bot.py             segundo canal, por long polling
-└── web/                       interface em Next.js
-    ├── app/
-    │   ├── page.tsx           portal com o assistente flutuante
-    │   ├── admin/             painel operacional
-    │   ├── api/chat/          BFF do chat, com regras de emergência
-    │   └── components/        assistente, cartões, alternador de tema
-    └── lib/
-        ├── contract.ts        tipos espelhando o Pydantic
-        ├── fallback.ts        classificação local de emergência
-        └── metrics.ts         leitura da telemetria
+O sistema é avaliado contra um conjunto de 78 casos escritos à mão, o
+`golden_dataset.json`, com a intenção esperada de cada frase.
+
+```bash
+docker compose run --rm --no-deps core python evaluate.py
 ```
 
-A pasta `data/` guarda a base de conhecimento. **Todas as intenções, exemplos,
-destinos e textos de resposta vivem no `flows.json`**, e nada disso está escrito
-dentro do código. Mudar o comportamento do assistente é editar esse arquivo e
-reiniciar o núcleo.
+Ou, mais curto, `make eval`.
 
----
+### Como ler a saída
 
-## Resultados medidos
+**Bloco 1, acurácia de intenção.** É o número principal.
 
-Números obtidos com os scripts deste repositório, não estimativas.
+```
+  global: 53/70 = 75.7%   (meta do dataset: 80% · piso deste script: 70%)
+
+  por dificuldade:
+    facil    24/30 =  80.0%
+    medio    24/32 =  75.0%
+    dificil   5/ 8 =  62.5%
+
+  por intenção:
+    FATURA              7/10  ███████···
+    SUPORTE_TECNICO     4/10  ████······
+    COBRANCA_INDEVIDA  10/10  ██████████
+```
+
+A leitura importante é a linha por intenção. **`COBRANCA_INDEVIDA` acerta 10 de
+10** porque é o caso sensível, protegido por regras determinísticas em vez de
+similaridade. **`SUPORTE_TECNICO` acerta 4 de 10** e é o ponto fraco conhecido:
+o `flows.json` tem poucos exemplos de treino para essa intenção.
+
+**Bloco 2, acurácia de rejeição.** Mede o que o sistema faz com frases vagas
+como "oi" ou "preciso de ajuda". Aparecem dois números, e a explicação está na
+própria saída: o dataset assume duas saídas possíveis, classificar ou rejeitar,
+e esta arquitetura tem três, porque pode pedir confirmação. **Nenhum dos 8 casos
+vagos é roteado com confiança alta**, que é a garantia que importa.
+
+**Bloco 3 e 4, os erros, um a um**, com a frase, o esperado, o obtido e o score.
+É aqui que se vê *por que* errou:
+
+```
+  «quero contratar mais dados»
+     esperado PLANO · obtido COMPRA · score 0.970 (regra) · dificil
+     nota do dataset: O verbo contratar puxa para COMPRA, mas o objeto e o
+     plano existente. Par de confusao classico.
+```
+
+**Bloco 5, desempenho.** Tempo médio de classificação, hoje em **13,5 ms**.
+
+O script sai com código 1 se a acurácia cair abaixo de 70%, então serve como
+portão de qualidade e não só como relatório.
+
+### Outros números medidos
 
 | Métrica | Valor | Como reproduzir |
 |---|---|---|
-| Acurácia de intenção | 75,7% | `evaluate.py` |
+| Acurácia de intenção | 75,7% | `make eval` |
 | Latência de classificação (mediana) | 14 ms | `scripts/bench_classify.py` |
 | Latência de classificação (p95) | 15 ms | `scripts/bench_classify.py` |
-| Latência com reescrita do Gemini | ~1,2 s na primeira vez, depois instantânea | painel |
-| Testes automatizados | 243 passando | `pytest tests/ -q` |
-
-A reescrita fica instantânea depois da primeira vez porque o texto depende só da
-intenção, não da mensagem. O núcleo redige cada texto uma vez e o guarda.
+| Testes automatizados | 243 passando | `make test` |
+| Construção das imagens | 4m21s | `docker compose build` |
+| Sistema saudável e atendendo | 17 s | `docker compose up --wait` |
 
 ---
 
-## Limites conhecidos
+## 9. Requisitos atendidos
 
-Documentados de propósito, não escondidos.
+Cada requisito do Documento de Visão, com o arquivo e a função onde está
+implementado.
 
-**O Telegram depende de um processo de pé.** O canal usa long polling, que
-dispensa URL pública mas exige que o adaptador esteja rodando. Se ele cair, as
-mensagens ficam guardadas no Telegram e são entregues quando ele voltar, mas
-ninguém é atendido enquanto isso.
+### Requisitos funcionais
 
-**Sem identidade de cliente.** Duas conversas da mesma pessoa em canais
-diferentes só são ligadas se compartilharem o identificador de sessão. Ligar
-automaticamente exigiria autenticação, que o Documento de Visão coloca fora do
-escopo desta fase.
+| Nº | Requisito | Onde está | Função |
+|---|---|---|---|
+| **RF001** | Identificação de intenção em linguagem natural | `core/app/classifier.py` | `classify()` orquestra as três camadas e devolve intenção, confiança e origem |
+| **RF002** | Classificação nas categorias do negócio | `core/app/rules.py`<br>`core/app/embeddings.py` | `match_rules()` para palavra-chave (confiança 0,97) e `score()` para similaridade semântica |
+| **RF003** | Roteamento inteligente para o canal ou fluxo | `core/app/routing.py` | `resolve()` busca o destino no catálogo do `flows.json` e gera o protocolo |
+| **RF004** | Tratamento de ambiguidade com pergunta de confirmação | `core/app/state_machine.py`<br>`core/app/main.py` | `opcoes_de_clarificacao()` monta as alternativas, `resolver_escolha()` interpreta a resposta, `_abrir_clarificacao()` conduz o turno |
+| **RF005** | Resposta inicial contextualizada | `core/app/generator.py` | `generate()` reescreve o roteiro no tom da marca; `render_canonical()` é a queda segura quando o Gemini falha |
+| **RF006** | Base de fluxos simulados | `core/data/flows.json`<br>`core/app/flows.py` | `init_flows()` carrega e `_validate()` recusa o boot se a base estiver inconsistente |
+| **RF007** | Encaminhamento para atendimento humano | `core/app/sensitivity.py`<br>`core/app/routing.py` | `check_sensitive()` escala assunto delicado antes de qualquer IA; `_resolver_destino()` cai em `ATENDIMENTO_HUMANO` quando não há destino mapeado |
+| **RF008** | Registro das intenções para análise | `core/app/telemetry.py` | `registrar()` grava cada atendimento em SQLite; `metricas()` alimenta o painel em `/admin` |
 
-**Suporte técnico é o ponto fraco do classificador**, com 4 acertos em 10 no
-conjunto de avaliação. A causa é vocabulário: expressões como "fora do ar" e
-"decodificador" não aparecem nos exemplos de treino. A correção é acrescentar
-exemplos ao `flows.json`.
+### Requisitos não funcionais
 
-**A telemetria guarda a frase do cliente.** Hoje são dados fictícios, mas num
-uso real isso exigiria política de retenção e anonimização.
+| Nº | Requisito | Onde está | Como é cumprido |
+|---|---|---|---|
+| **RNF001** | Escalabilidade para novas intenções e canais | `core/data/flows.json`<br>`adapters/README.md` | intenção nova é edição de JSON, sem tocar em Python; canal novo é um arquivo em `adapters/` mais uma linha no enum `Channel` de `core/app/contract.py` |
+| **RNF002** | Segurança e privacidade | `docker-compose.yml`<br>`web/app/api/chat/route.ts` | o `core` não publica porta e só existe na rede interna; o navegador fala apenas com o BFF; os containers rodam sem privilégio (`guia`, `node`); segredos por variável de ambiente, nunca na imagem |
+| **RNF003** | Baixa latência | `core/app/embeddings.py`<br>`core/scripts/bench_classify.py` | `load_model()` embeda os 105 exemplos uma vez no boot numa matriz normalizada, então cada mensagem custa um encode e um produto de matriz. Medido: **13,5 ms** |
+| **RNF004** | Usabilidade em linguagem natural | `web/app/components/ChatWidget.tsx` | assistente flutuante em qualquer página, sem menu; o cliente escreve como falaria |
+| **RNF005** | Clareza e tom de voz da marca | `core/app/generator.py`<br>`core/data/flows.json` | `_montar_pedido()` entrega ao modelo o roteiro pronto e pede só reescrita de tom; os roteiros vivem no `flows.json` |
+| **RNF006** | Confiabilidade, sem resposta inventada | `core/app/generator.py`<br>`core/app/routing.py` | `_ancorado()` rejeita a resposta do modelo se ela contiver URL ou protocolo, porque esses dados nunca entram no pedido; `resolve()` só devolve destino que exista no catálogo fechado |
 
-**Sem empacotamento.** Não há Dockerfile nem docker-compose; cada processo sobe
-manualmente, no seu próprio terminal.
+### As três regras que sustentam tudo
 
-**O diagrama de arquitetura ainda mostra só o canal web.** O
-`docs/arquitetura.json` foi desenhado antes do adaptador de Telegram existir e
-precisa ser regerado para incluí-lo.
+1. **O modelo de linguagem é redator, não decisor.** O destino sai de código
+   determinístico. O Gemini recebe o roteiro pronto e só reescreve o tom. A
+   prova é o RNF006: endereço e protocolo nem são mostrados a ele.
+2. **O catálogo de destinos é fechado.** Intenção sem destino mapeado vira
+   atendimento humano. Nunca se infere um endereço.
+3. **O sistema roda sem nenhuma chave de API.** É requisito de avaliação, e o
+   [item 4](#4-como-rodar) é a demonstração.
+
+---
+
+## 10. Estrutura do projeto
+
+```
+claro-guia-inteligente/
+├── core/                        o cérebro, em Python
+│   ├── app/
+│   │   ├── main.py              servidor e orquestração do pipeline
+│   │   ├── contract.py          contrato da API em Pydantic, congelado
+│   │   ├── config.py            variáveis de ambiente, com padrões
+│   │   ├── flows.py             carga e validação do flows.json
+│   │   ├── normalize.py         limpeza do texto
+│   │   ├── sensitivity.py       etapa 1: assuntos delicados, antes da IA
+│   │   ├── rules.py             etapa 2: palavras-chave de alta precisão
+│   │   ├── embeddings.py        etapa 3: similaridade semântica
+│   │   ├── classifier.py        orquestra as etapas 1 a 3
+│   │   ├── state_machine.py     sessão, ambiguidade e clarificação
+│   │   ├── routing.py           etapa 4: destino e protocolo
+│   │   ├── generator.py         etapa 5: redação ancorada, com degradação
+│   │   └── telemetry.py         etapa 6: registro em SQLite
+│   ├── data/
+│   │   ├── flows.json           BASE DE CONHECIMENTO: intenções, exemplos,
+│   │   │                        destinos e roteiros. Nada disso no código
+│   │   └── golden_dataset.json  78 casos de avaliação
+│   ├── scripts/                 ferramentas de terminal
+│   ├── tests/                   243 testes
+│   ├── evaluate.py              avaliação do classificador
+│   └── Dockerfile               imagem com o modelo embutido no build
+├── adapters/                    canais que conversam com o núcleo
+│   ├── README.md                o contrato e como escrever um canal novo
+│   └── telegram/bot.py          segundo canal, por long polling
+├── web/                         interface e BFF, em Next.js
+│   ├── app/
+│   │   ├── page.tsx             portal com o assistente flutuante
+│   │   ├── admin/               painel operacional
+│   │   ├── api/chat/            BFF, com regras locais de emergência
+│   │   └── components/          assistente, cartões, alternador de tema
+│   └── lib/
+│       ├── contract.ts          tipos espelhando o Pydantic
+│       ├── fallback.ts          classificação local de emergência
+│       └── metrics.ts           leitura da telemetria
+├── docs/                        diagrama de arquitetura, fonte e saídas
+├── docker-compose.yml           orquestração para uso
+├── docker-compose.dev.yml       sobreposição com recarga automática
+├── Makefile                     atalhos dos comandos do dia a dia
+└── .env.example                 todas as variáveis, explicadas
+```
+
+**Todo o comportamento do assistente vive no `flows.json`:** as intenções, os
+exemplos de treino, as palavras-chave, os destinos e os textos de resposta.
+Mudar o que ele faz é editar esse arquivo e reiniciar, sem tocar em Python.
+
+---
+
+## 11. Desenvolvimento
+
+`make` sozinho lista tudo.
+
+| Comando | O que faz |
+|---|---|
+| `make up` | sobe o sistema |
+| `make dev` | sobe com **recarga automática**: editar um arquivo recarrega o processo, sem reconstruir |
+| `make telegram` | sobe o sistema mais o canal de Telegram |
+| `make down` | desliga, **preservando** a telemetria gravada |
+| `make reset` | desliga e **apaga** a telemetria, para começar com o painel zerado |
+| `make eval` | avalia o classificador |
+| `make test` | roda os 243 testes |
+| `make logs` | acompanha os registros de todos os serviços |
+
+A telemetria fica num volume nomeado, fora dos containers. Por isso `make down`
+seguido de `make up` não perde o histórico, e é preciso pedir `make reset`
+explicitamente para zerar.
+
+Em `make dev` o núcleo também publica a porta 8000, para bater nele com `curl`
+sem passar pelo site. Em uso normal essa porta não existe.
+
+Para trabalhar sem Docker, o [`adapters/README.md`](adapters/README.md) e os
+comentários no topo de cada módulo explicam as decisões de desenho. O resumo:
+`cd core && python -m venv .venv && .venv/bin/pip install -r requirements.txt`,
+depois `.venv/bin/uvicorn app.main:app --port 8000`, e `cd web && npm install &&
+npm run dev` noutro terminal. Exige Python 3.12 ou mais novo, porque o numpy
+fixado no `requirements.txt` não roda em 3.11.
+
+---
+
+## 12. Problemas comuns
+
+### A porta 3000 já está ocupada
+
+```
+Error starting userland proxy: listen tcp4 0.0.0.0:3000: bind: address already in use
+```
+
+Escolha outra porta no `.env`:
+
+```bash
+echo 'WEB_PORT=3001' >> .env
+```
+
+E acesse `http://localhost:3001`.
+
+### A construção está demorando muito
+
+É esperado na primeira vez: **4 a 6 minutos**, dos quais a maior parte é baixar
+o PyTorch e os 458 MB do modelo de similaridade. As construções seguintes
+aproveitam o que já foi baixado e levam segundos.
+
+Se passar muito disso, provavelmente é a rede. Acompanhe o progresso real com:
+
+```bash
+docker compose build --progress=plain
+```
+
+### O bot do Telegram não responde
+
+Olhe o registro do container:
+
+```bash
+docker compose logs telegram
+```
+
+| O que aparece | O que significa |
+|---|---|
+| `TELEGRAM_BOT_TOKEN não definido` | falta o token no `.env`, ou você não subiu com `--profile telegram` |
+| `o Telegram recusou o token` | token colado errado, ou com espaço sobrando |
+| `chat 123456 fora da allowlist` | o `TELEGRAM_ALLOWED_CHATS` está com o número errado |
+| `núcleo não respondeu` | o container do `core` caiu ou ainda está subindo |
+| nada, silêncio | é normal: ele fica até 30 segundos parado em cada rodada de espera |
+
+### Não tenho internet na máquina
+
+Depois da primeira construção, **o sistema funciona sem rede nenhuma**. O modelo
+de similaridade está dentro da imagem, e a única saída para a internet é a
+chamada opcional ao Gemini, que degrada sozinha para os textos do `flows.json`.
+
+Para a **primeira** construção a internet é obrigatória, porque é quando as
+dependências e o modelo são baixados. Se precisar levar o projeto para uma
+máquina sem rede, construa numa máquina com internet e leve a imagem pronta:
+
+```bash
+docker save claro-guia-inteligente-core claro-guia-inteligente-web | gzip > imagens.tar.gz
+# na outra máquina:
+gunzip -c imagens.tar.gz | docker load
+```
+
+### O assistente responde, mas sempre com o mesmo texto
+
+Está funcionando como projetado, sem chave do Gemini. Veja o
+[item 5.1](#51-respostas-reescritas-por-ia-generativa) para ligar a reescrita.
+
+### O painel está vazio
+
+Ele mostra o que foi conversado. Converse algumas vezes no assistente e recarregue.
+
+---
+
+## 13. Limitações conhecidas
+
+Documentadas de propósito, não escondidas.
+
+**Todos os dados são fictícios.** Nenhuma integração com sistema real da Claro.
+Os links apontam para páginas públicas, os protocolos são gerados por sorteio e
+não existem em lugar nenhum. É o que o Documento de Visão define como escopo:
+protótipo com dados simulados.
+
+**A sessão vive em memória e expira em 30 minutos.** Reiniciar o núcleo apaga as
+conversas em aberto. É escolha, não limitação: banco gerenciado está entre os
+anti-objetivos do projeto, e ninguém retoma um menu de três opções vinte minutos
+depois.
+
+**Não existe identidade de cliente.** Duas conversas da mesma pessoa em canais
+diferentes não são ligadas. Fazer isso exigiria autenticação, que o Documento de
+Visão coloca fora desta fase.
+
+**Suporte técnico é o ponto fraco do classificador**, com 4 acertos em 10. A
+causa é conhecida: poucos exemplos de treino no `flows.json` para essa intenção.
+
+**A imagem do núcleo tem 2,7 GB.** É o preço de embarcar o PyTorch e o modelo.
+Reduzir de verdade exigiria exportar o modelo para ONNX, o que obrigaria a
+refazer a calibração dos limiares de confiança.
+
+**O canal de Telegram depende de um processo de pé.** Usa long polling, que
+dispensa URL pública mas exige o adaptador rodando. Mensagens enviadas com ele
+desligado ficam guardadas no Telegram por cerca de 24 horas e chegam quando ele
+voltar.
+
+**O diagrama de arquitetura ainda não mostra o canal de Telegram nem os
+containers.** O `docs/arquitetura.json` foi desenhado antes deles existirem.
+
+---
+
+## 14. Time
+
+**Adamanto AI** · FIAP 4SI · Challenge 2026 · Claro
+
+| Integrante | RM |
+|---|---|
+| Enzo Luciano Duarte | 552486 |
+| Ronaldo Kozan Júnior | 98865 |
+| Rafael Lima de Oliveira | 88755 |
+| Henrique Vieira de Oliveira | 558777 |
