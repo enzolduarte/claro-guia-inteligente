@@ -1,0 +1,20 @@
+# O contexto de build é enviado inteiro ao Docker antes de a primeira linha do
+# Dockerfile rodar. Sem esta lista, o .venv de 1,2 GB subiria a cada build.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Segredos nunca entram em imagem. Em container eles chegam por variável de
+# ambiente, definida no compose.
+.env
+.env.*
+
+# Banco local. O container usa o volume nomeado, não este arquivo.
+data/*.db
+data/*.sqlite3
+
+# Testes não vão para a imagem de produção. Rodam no repositório.
+tests/

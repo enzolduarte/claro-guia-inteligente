@@ -44,22 +44,6 @@ export interface Metricas {
   ultimas: Interacao[];
 }
 
-export const METRICAS_VAZIAS: Metricas = {
-  total_hoje: 0,
-  total_geral: 0,
-  reais: 0,
-  simulados: 0,
-  taxa_resolucao_digital: 0,
-  taxa_escalacao: 0,
-  latencia_media_ms: 0,
-  por_intencao: {},
-  por_canal: {},
-  por_dia: [],
-  por_camada: {},
-  por_origem_resposta: {},
-  ultimas: [],
-};
-
 /** `null` quando o núcleo não respondeu — o painel decide o que mostrar. */
 export async function buscarMetricas(): Promise<Metricas | null> {
   const base = process.env.CORE_URL ?? "http://localhost:8000";

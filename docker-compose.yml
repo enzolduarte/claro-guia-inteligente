@@ -1,0 +1,129 @@
+# Claro Guia Inteligente — orquestração para uso.
+#
+#   docker compose up --build                      núcleo + site
+#   docker compose --profile telegram up --build   os dois, mais o bot
+#
+# Sobe sem nenhum arquivo .env. Toda variável abaixo tem valor padrão, e o
+# sistema funciona sem chave de API nenhuma: sem GEMINI_API_KEY ele responde com
+# os textos do flows.json, sem TELEGRAM_BOT_TOKEN o bot avisa e encerra limpo.
+# Isso é requisito de avaliação, não conveniência (regra 3 do CLAUDE.md).
+#
+# Para ligar as chaves: cp .env.example .env e preencha. O compose lê o .env da
+# raiz sozinho, e não reclama quando ele não existe.
+
+services:
+  core:
+    build:
+      context: ./core
+    # SEM `ports`. O núcleo vive na rede interna do compose e só é alcançável
+    # por quem está nela. Publicar 8000 aqui abriria o cérebro do sistema para
+    # a máquina inteira, contornando o BFF (seção 2 do CLAUDE.md).
+    expose:
+      - "8000"
+    env_file:
+      # Dois lugares aceitos, ambos opcionais, e é de propósito:
+      #
+      #   .env         quem clona o projeto e segue o README faz `cp
+      #                .env.example .env` e para por aí
+      #   core/.env    quem já rodava sem Docker tem as chaves aqui, e é este o
+      #                arquivo que o núcleo e o adaptador leem direto
+      #
+      # `core/.env` vem por último e portanto vence. Isso importa: o
+      # `.env.example` tem os campos VAZIOS, e se ele viesse depois, apagaria a
+      # chave de quem já a tinha configurada.
+      #
+      # `required: false` nos dois mantém a promessa de subir sem configurar
+      # nada (regra 3 da seção 5 do CLAUDE.md).
+      - path: ./.env
+        required: false
+      - path: ./core/.env
+        required: false
+    environment:
+      # Só o que o compose precisa mandar. Os demais valores vêm do arquivo
+      # acima ou dos padrões declarados em core/app/config.py, que continuam
+      # sendo a única definição de default do núcleo.
+      DB_PATH: /data/telemetria.db
+    volumes:
+      - dados:/data
+    healthcheck:
+      # `curl` não existe na imagem slim, e instalar um pacote só para o
+      # healthcheck engordaria a imagem. O Python já está aqui.
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      # Folgado de propósito: o boot carrega o modelo de embeddings e calcula a
+      # matriz dos 105 exemplos do catálogo, o que leva dezenas de segundos numa
+      # máquina modesta. Com uma janela curta, o compose mataria o container
+      # antes de ele terminar de ficar pronto, num laço sem fim.
+      start_period: 120s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      # `core` é o nome do serviço, e o DNS interno do compose resolve para o
+      # container. Nenhum endereço de máquina aparece aqui.
+      CORE_URL: http://core:8000
+      CORE_TIMEOUT_MS: ${CORE_TIMEOUT_MS:-2500}
+    depends_on:
+      core:
+        # Espera o /health responder, não só o container existir. Sem isto o
+        # site subiria antes de o modelo carregar e a primeira conversa cairia
+        # nas regras locais de emergência.
+        condition: service_healthy
+    healthcheck:
+      # Sem este bloco, o `docker compose up -d` devolve o controle assim que o
+      # container existe, e quem chamar a porta 3000 no segundo seguinte leva
+      # conexão recusada: o servidor do Next ainda está subindo.
+      #
+      # A checagem usa o próprio Node, que a imagem obviamente tem. A primeira
+      # versão usava `wget --spider` do busybox e marcava o site como doente
+      # enquanto o `curl` de fora recebia 200: o busybox da Alpine é uma versão
+      # reduzida e nem toda opção longa existe nele. Ferramenta que já vem com a
+      # aplicação não tem essa dúvida.
+      test:
+        - CMD
+        - node
+        - -e
+        - require('http').get('http://127.0.0.1:3000/',r=>process.exit(r.statusCode<400?0:1)).on('error',()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  telegram:
+    build:
+      context: ./adapters/telegram
+    # Perfil: não sobe no `up` normal. Só com `--profile telegram`, porque este
+    # canal é opcional e depende de um token que nem toda máquina tem.
+    profiles: ["telegram"]
+    env_file:
+      # Mesmo arquivo do núcleo: o token do bot já mora nele.
+      - path: ./.env
+        required: false
+      - path: ./core/.env
+        required: false
+    environment:
+      # Declarado DEPOIS do env_file de propósito: `environment` vence, e o
+      # endereço do núcleo dentro da rede do compose não pode ser sobrescrito
+      # por um CORE_URL de desenvolvimento que aponte para localhost.
+      CORE_URL: http://core:8000
+    depends_on:
+      core:
+        condition: service_healthy
+    # `on-failure` e não `unless-stopped`: sem token o adaptador encerra com
+    # código 0 de propósito, e reiniciar isso para sempre viraria um laço de
+    # container subindo e caindo a cada segundo.
+    restart: on-failure
+
+volumes:
+  dados:

@@ -1,0 +1,56 @@
+# Sobreposição de desenvolvimento. Não roda sozinha:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# ou simplesmente `make dev`, que é a mesma coisa escrita uma vez só.
+#
+# A diferença para o arquivo de uso é uma só: aqui o código vem da sua pasta,
+# não da imagem. Editar um arquivo recarrega o processo, sem rebuild.
+
+services:
+  core:
+    volumes:
+      - ./core/app:/app/app
+      - ./core/data:/app/data
+      - dados:/data
+    # O ambiente virtual vive em /opt/venv, fora do WORKDIR, então montar o
+    # código por cima de /app não esconde as dependências.
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --reload
+    # O `--reload` derruba e sobe o processo a cada salvamento, e cada subida
+    # recarrega o modelo. Um healthcheck apertado marcaria o serviço como doente
+    # no meio de uma edição e derrubaria o site junto.
+    healthcheck:
+      start_period: 300s
+    # Publicada só em desenvolvimento, para bater no núcleo direto com curl sem
+    # passar pelo site. Em uso normal esta porta não existe.
+    ports:
+      - "${CORE_PORT:-8000}:8000"
+
+  web:
+    build:
+      # O estágio `dependencias` tem o node_modules completo e nenhum build
+      # pronto, que é exatamente o que o `next dev` precisa.
+      target: dependencias
+    # Roda como `node` (id 1000), não como root. O `next dev` escreve a pasta
+    # .next dentro do diretório montado, ou seja, na SUA máquina: como root, ela
+    # sai com dono errado e o `npm run build` fora do container passa a falhar
+    # por permissão. Confira o seu id com `id -u`; se não for 1000, troque esta
+    # linha por `user: "SEU_ID:SEU_ID"`.
+    user: "node"
+    volumes:
+      - ./web:/app
+      # Volume anônimo por cima: sem ele, a pasta node_modules da sua máquina
+      # (instalada no Linux ou não instalada) esconderia a que a imagem trouxe.
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
+    # `-H 0.0.0.0` pelo mesmo motivo do HOSTNAME na imagem de uso: escutando só
+    # em 127.0.0.1, o servidor fica inalcançável de fora do container.
+    command: ["npm", "run", "dev", "--", "-H", "0.0.0.0"]

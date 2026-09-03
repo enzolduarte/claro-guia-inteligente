@@ -475,9 +475,27 @@ def main() -> int:
     parar = False
 
     def encerrar(_sinal: int, _quadro: FrameType | None) -> None:
+        """Primeiro pedido encerra com ordem; o segundo encerra na hora.
+
+        O laço passa quase todo o tempo parado dentro do `getUpdates`, esperando
+        o Telegram por até 30 segundos. O sinal chega, marca a saída, e o
+        processo VOLTA a esperar a conexão terminar: quem apertou Ctrl+C fica
+        olhando um terminal que não responde e aperta de novo, sem efeito.
+        Devolver o comportamento padrão do sistema no segundo pedido resolve
+        isso sem inventar nada.
+        """
         nonlocal parar
+        if parar:
+            log.warning("encerrando agora, sem terminar a espera")
+            signal.signal(signal.SIGINT, signal.SIG_DFL)
+            signal.signal(signal.SIGTERM, signal.SIG_DFL)
+            raise KeyboardInterrupt
         parar = True
-        log.info("encerrando depois desta rodada de espera...")
+        log.info(
+            "encerrando quando esta espera terminar (ate %ss). "
+            "Ctrl+C de novo sai na hora.",
+            cfg.poll_timeout_s,
+        )
 
     signal.signal(signal.SIGINT, encerrar)
     signal.signal(signal.SIGTERM, encerrar)
@@ -486,30 +504,37 @@ def main() -> int:
     offset: int | None = None
     espera = BACKOFF_INICIAL_S
 
-    while not parar:
-        try:
-            updates = telegram.buscar_updates(offset)
-            espera = BACKOFF_INICIAL_S
-        except (httpx.HTTPError, RuntimeError) as erro:
-            log.warning(
-                "falha ao buscar mensagens: %s (nova tentativa em %.0fs)", erro, espera
-            )
-            if _dormir(espera, lambda: parar):
-                break
-            espera = min(espera * 2, BACKOFF_MAXIMO_S)
-            continue
-
-        for update in updates:
-            # O offset avança mesmo se o tratamento falhar: uma mensagem que
-            # quebra o adaptador não pode ser reentregue para sempre, travando
-            # a fila atrás dela.
-            offset = update["update_id"] + 1
-            if adaptador.ja_tratado(update["update_id"]):
-                continue
+    try:
+        while not parar:
             try:
-                adaptador.tratar(update)
-            except Exception:
-                log.exception("erro ao tratar update %s", update["update_id"])
+                updates = telegram.buscar_updates(offset)
+                espera = BACKOFF_INICIAL_S
+            except (httpx.HTTPError, RuntimeError) as erro:
+                log.warning(
+                    "falha ao buscar mensagens: %s (nova tentativa em %.0fs)",
+                    erro,
+                    espera,
+                )
+                if _dormir(espera, lambda: parar):
+                    break
+                espera = min(espera * 2, BACKOFF_MAXIMO_S)
+                continue
+
+            for update in updates:
+                # O offset avança mesmo se o tratamento falhar: uma mensagem que
+                # quebra o adaptador não pode ser reentregue para sempre,
+                # travando a fila atrás dela.
+                offset = update["update_id"] + 1
+                if adaptador.ja_tratado(update["update_id"]):
+                    continue
+                try:
+                    adaptador.tratar(update)
+                except Exception:
+                    log.exception("erro ao tratar update %s", update["update_id"])
+    except KeyboardInterrupt:
+        # Segundo Ctrl+C. Sair aqui, e não deixar estourar, mantém o encerramento
+        # com uma linha de log em vez de um rastro de pilha.
+        pass
 
     telegram.fechar()
     nucleo.fechar()

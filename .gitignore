@@ -10,6 +10,9 @@ venv/
 node_modules/
 .next/
 out/
+# Cache incremental do compilador TypeScript. E gerado a cada build, muda
+# sempre e nao serve para nada em outra maquina.
+*.tsbuildinfo
 
 # Ambiente e segredos
 .env

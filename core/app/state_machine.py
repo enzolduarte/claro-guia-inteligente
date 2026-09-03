@@ -53,9 +53,6 @@ TRANSICOES: dict[State, frozenset[State]] = {
     State.ENCERRADO: frozenset({State.AGUARDANDO}),
 }
 
-# Estados de descanso: de onde a próxima mensagem do usuário pode partir.
-TERMINAIS = (State.ROTEANDO, State.ESCALANDO, State.ENCERRADO)
-
 CONFIRMACAO = "confirmacao"
 OPCOES = "opcoes"
 

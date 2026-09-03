@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+
+# Segredos chegam por variável de ambiente, definida no compose.
+.env
+.env.*

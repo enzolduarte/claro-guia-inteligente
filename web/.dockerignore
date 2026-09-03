@@ -1,0 +1,10 @@
+node_modules/
+.next/
+out/
+
+# Segredos chegam por variável de ambiente, definida no compose.
+.env
+.env.local
+
+npm-debug.log*
+.DS_Store
