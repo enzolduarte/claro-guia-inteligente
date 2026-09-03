@@ -165,8 +165,17 @@ def _destinos_humanos() -> set[str]:
     }
 
 
+ULTIMAS_NO_PAINEL = 20
+DIAS_NA_SERIE = 14
+
+
 def metricas() -> dict[str, Any]:
-    """Agregados para o painel. Separa o que é real do que foi semeado."""
+    """Agregados para o painel. Separa o que é real do que foi semeado.
+
+    Devolve também as últimas interações, para o painel mostrar a conversa
+    crua ao lado dos números — é o que permite conferir um agregado suspeito
+    olhando as linhas que o formaram.
+    """
     conexao = _exigir_conexao()
     humanos = _destinos_humanos()
     vazio = ", ".join("?" * len(humanos)) or "''"
@@ -192,6 +201,27 @@ def metricas() -> dict[str, Any]:
         por_canal = conexao.execute(
             "SELECT canal, COUNT(*) AS n FROM interacoes GROUP BY canal ORDER BY n DESC"
         ).fetchall()
+        por_dia = conexao.execute(
+            "SELECT substr(ts, 1, 10) AS dia, COUNT(*) AS n FROM interacoes"
+            " GROUP BY dia ORDER BY dia DESC LIMIT ?",
+            (DIAS_NA_SERIE,),
+        ).fetchall()
+        # A cascata do pipeline: quanto foi resolvido por regra determinística,
+        # quanto precisou de embeddings, quanto ninguém identificou.
+        por_camada = conexao.execute(
+            "SELECT confidence_source AS chave, COUNT(*) AS n FROM interacoes"
+            " GROUP BY chave"
+        ).fetchall()
+        # A escada de degradação: texto do LLM, roteiro canônico ou fallback.
+        por_origem_resposta = conexao.execute(
+            "SELECT reply_source AS chave, COUNT(*) AS n FROM interacoes GROUP BY chave"
+        ).fetchall()
+        ultimas = conexao.execute(
+            "SELECT ts, canal, texto, intent, confidence, band, confidence_source,"
+            " state, destination, protocol, reply_source, latency_ms, simulado"
+            " FROM interacoes ORDER BY id DESC LIMIT ?",
+            (ULTIMAS_NO_PAINEL,),
+        ).fetchall()
 
     resolvidos = total - escalados
     return {
@@ -204,4 +234,12 @@ def metricas() -> dict[str, Any]:
         "latencia_media_ms": round(latencia, 1),
         "por_intencao": {linha["chave"]: linha["n"] for linha in por_intencao},
         "por_canal": {linha["canal"]: linha["n"] for linha in por_canal},
+        "por_dia": [
+            {"dia": linha["dia"], "n": linha["n"]} for linha in reversed(por_dia)
+        ],
+        "por_camada": {linha["chave"]: linha["n"] for linha in por_camada},
+        "por_origem_resposta": {
+            linha["chave"]: linha["n"] for linha in por_origem_resposta
+        },
+        "ultimas": [dict(linha) for linha in ultimas],
     }

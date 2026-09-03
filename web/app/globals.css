@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Tokens de tema. Toda cor da interface sai daqui — nenhum componente escreve
+ * hex direto, então trocar de tema é trocar este bloco.
+ *
+ * As rampas de gráfico foram validadas com o script da metodologia de dataviz,
+ * uma vez por modo (superfície #ffffff no claro, #14161b no escuro):
+ *   claro:  #f6919f → #e4002b → #960020
+ *   escuro: #fca7b4 → #f4677d → #e4002b
+ * Modo escuro é ESCOLHIDO, não um espelho automático do claro.
+ */
+
+:root {
+  --fundo: #f6f7f9;
+  --superficie: #ffffff;
+  --superficie-2: #ffffff;
+  --tinta: #16181d;
+  --tinta-2: #5c6370;
+  --tinta-3: #9aa1ad;
+  --borda: #e2e5ea;
+  --marca: #e4002b;
+  --marca-forte: #b00020;
+  --rampa-1: #f6919f;
+  --rampa-2: #e4002b;
+  --rampa-3: #960020;
+  --trilho: rgba(22, 24, 29, 0.08);
+  --aviso-fundo: #fff8e6;
+  --aviso-borda: #f0d9a0;
+  --aviso-tinta: #7a5800;
+  --aviso-etiqueta: #f2d38a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fundo: #14161b;
+    --superficie: rgba(255, 255, 255, 0.03);
+    --superficie-2: #191c22;
+    --tinta: #ffffff;
+    --tinta-2: rgba(255, 255, 255, 0.62);
+    --tinta-3: rgba(255, 255, 255, 0.38);
+    --borda: rgba(255, 255, 255, 0.12);
+    --marca: #e4002b;
+    --marca-forte: #f4677d;
+    --rampa-1: #fca7b4;
+    --rampa-2: #f4677d;
+    --rampa-3: #e4002b;
+    --trilho: rgba(255, 255, 255, 0.08);
+    --aviso-fundo: rgba(251, 191, 36, 0.07);
+    --aviso-borda: rgba(251, 191, 36, 0.25);
+    --aviso-tinta: #fde68a;
+    --aviso-etiqueta: rgba(251, 191, 36, 0.25);
+  }
+}
+
+:root[data-theme="dark"] {
+  --fundo: #14161b;
+  --superficie: rgba(255, 255, 255, 0.03);
+  --superficie-2: #191c22;
+  --tinta: #ffffff;
+  --tinta-2: rgba(255, 255, 255, 0.62);
+  --tinta-3: rgba(255, 255, 255, 0.38);
+  --borda: rgba(255, 255, 255, 0.12);
+  --marca: #e4002b;
+  --marca-forte: #f4677d;
+  --rampa-1: #fca7b4;
+  --rampa-2: #f4677d;
+  --rampa-3: #e4002b;
+  --trilho: rgba(255, 255, 255, 0.08);
+  --aviso-fundo: rgba(251, 191, 36, 0.07);
+  --aviso-borda: rgba(251, 191, 36, 0.25);
+  --aviso-tinta: #fde68a;
+  --aviso-etiqueta: rgba(251, 191, 36, 0.25);
+}

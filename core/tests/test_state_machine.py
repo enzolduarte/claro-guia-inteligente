@@ -265,3 +265,34 @@ def test_escolha_de_verdade_continua_resolvendo(
     corpo = falar(client, escolha, sessao="web:bom")
     assert corpo["state"] == "ROTEANDO"
     assert corpo["routing"]["destination"] == destino
+
+
+# --------------------------------- mudança de assunto durante a clarificação
+
+
+def test_mudar_de_assunto_abandona_a_clarificacao(client: TestClient) -> None:
+    """Sessão única, descoberto em 02/09: o cliente não fica preso no menu."""
+    falar(client, "tenho uma duvida", sessao="web:troca")  # confirmação pendente
+    corpo = falar(client, "quero mudar meu plano", sessao="web:troca")
+    assert corpo["intent"] == "PLANO"
+    assert corpo["state"] == "CLARIFICANDO"
+    assert [o["id"] for o in corpo["options"]] == ["upgrade", "economia", "catalogo"]
+
+    fim = falar(client, "economia", sessao="web:troca")
+    assert fim["routing"]["destination"] == "FLUXO_COMERCIAL_ECONOMIA"
+
+
+def test_contestacao_durante_clarificacao_escala(client: TestClient) -> None:
+    """Assunto sensível fura qualquer menu — nunca recebe 'não entendi'."""
+    falar(client, "quero mudar meu plano", sessao="web:sens")
+    corpo = falar(client, "fui cobrado por algo que nao contratei", sessao="web:sens")
+    assert corpo["state"] == "ESCALANDO"
+    assert corpo["routing"]["destination"] == "ESCALACAO_HUMANA"
+
+
+def test_resposta_confusa_ainda_repete_as_opcoes(client: TestClient) -> None:
+    """A troca de assunto exige certeza; ruído continua repetindo o menu."""
+    falar(client, "quero mudar meu plano", sessao="web:conf")
+    corpo = falar(client, "hmm sei la", sessao="web:conf")
+    assert corpo["state"] == "CLARIFICANDO"
+    assert corpo["intent"] == "PLANO"

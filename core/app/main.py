@@ -266,6 +266,23 @@ def _resolver_clarificacao(
     escolhido = resolver_escolha(sessao, payload.text)
 
     if escolhido is None:
+        # A resposta não é uma escolha — mas pode ser uma MUDANÇA DE ASSUNTO.
+        # Descoberto em teste de sessão única (02/09): quem dizia "quero mudar
+        # meu plano" no meio de uma confirmação recebia "não entendi, escolha
+        # sim ou não" e, na segunda vez, era arrastado para atendimento humano.
+        # Pior: uma contestação de cobrança dita aqui receberia "não entendi".
+        # A troca só vale com certeza DETERMINÍSTICA: sensibilidade ou regra
+        # (0,97). Banda alta de embedding não basta — texto curto de cortesia
+        # engana: "obrigado" pontua 0,752 (ALTO) para ATENDIMENTO e "valeu"
+        # 0,781 para COBRANCA_INDEVIDA. Medido em 02/09/2026.
+        resultado = classify(payload.text)
+        if resultado.intent is not None and (
+            resultado.is_sensitive or resultado.source is ConfidenceSource.REGRA
+        ):
+            sessao.fechar_clarificacao()
+            STORE.transicionar(sessao, State.PROCESSANDO)
+            return _decidir_com_intencao(sessao, payload, resultado, elapsed_ms)
+
         sessao.clarify_attempts += 1
         if sessao.clarify_attempts >= MAX_TENTATIVAS_CLARIFICACAO:
             # Duas tentativas e nada. Insistir irrita; um humano resolve.

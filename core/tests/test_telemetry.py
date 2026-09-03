@@ -235,3 +235,67 @@ def test_registrar_sem_conexao_nao_explode() -> None:
     """Perder uma linha de métrica é aceitável; virar erro no cliente, não."""
     telemetry.fechar()
     telemetry.registrar(evento())  # não deve levantar nada
+
+
+# ------------------------------------------------------ últimas conversas
+
+
+def test_ultimas_vem_da_mais_nova_para_a_mais_velha() -> None:
+    for i in range(3):
+        telemetry.registrar(evento(texto=f"mensagem {i}"))
+    ultimas = telemetry.metricas()["ultimas"]
+    assert [linha["texto"] for linha in ultimas] == [
+        "mensagem 2",
+        "mensagem 1",
+        "mensagem 0",
+    ]
+
+
+def test_ultimas_para_em_vinte() -> None:
+    telemetry.registrar_muitos([evento(texto=f"m{i}") for i in range(30)])
+    assert len(telemetry.metricas()["ultimas"]) == telemetry.ULTIMAS_NO_PAINEL == 20
+
+
+def test_ultimas_marcam_o_que_e_sintetico() -> None:
+    telemetry.registrar(evento(texto="real"))
+    telemetry.registrar(evento(texto="semeado", simulado=1))
+    por_texto = {
+        linha["texto"]: linha["simulado"] for linha in telemetry.metricas()["ultimas"]
+    }
+    assert por_texto["real"] == 0
+    assert por_texto["semeado"] == 1
+
+
+# ------------------------------------------- séries do painel
+
+
+def test_serie_por_dia_vem_em_ordem_crescente() -> None:
+    telemetry.registrar(evento(ts="2026-08-30T10:00:00+00:00"))
+    telemetry.registrar(evento(ts="2026-09-01T10:00:00+00:00"))
+    telemetry.registrar(evento(ts="2026-08-31T10:00:00+00:00"))
+    dias = [linha["dia"] for linha in telemetry.metricas()["por_dia"]]
+    assert dias == sorted(dias), "o gráfico lê da esquerda para a direita"
+
+
+def test_cascata_separa_as_camadas_de_decisao() -> None:
+    telemetry.registrar_muitos(
+        [evento(confidence_source="regra") for _ in range(3)]
+        + [evento(confidence_source="embedding") for _ in range(2)]
+        + [evento(confidence_source="nenhuma")]
+    )
+    assert telemetry.metricas()["por_camada"] == {
+        "regra": 3,
+        "embedding": 2,
+        "nenhuma": 1,
+    }
+
+
+def test_escada_de_degradacao_separa_origem_da_resposta() -> None:
+    telemetry.registrar_muitos(
+        [evento(reply_source="generative") for _ in range(2)]
+        + [evento(reply_source="template")]
+    )
+    assert telemetry.metricas()["por_origem_resposta"] == {
+        "generative": 2,
+        "template": 1,
+    }

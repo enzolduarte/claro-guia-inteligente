@@ -18,7 +18,8 @@ from __future__ import annotations
 
 import asyncio
 import re
-from collections.abc import Awaitable, Sequence
+import threading
+from collections.abc import Awaitable, Callable, Sequence
 
 import httpx
 
@@ -39,6 +40,18 @@ MAX_LINHAS = 6
 # metade dos turnos cairia no texto canônico e a conversa ficaria alternando
 # entre fluida e robótica.
 _redigidos: dict[tuple[str, str], str] = {}
+
+# Redações em andamento, para pedidos simultâneos do mesmo texto não
+# dispararem chamadas duplicadas. O Event avisa quando a redação terminou.
+_em_andamento: dict[tuple[str, str], threading.Event] = {}
+_trava = threading.Lock()
+
+# Quanto o caminho da RESPOSTA espera pela redação. Curto de propósito: o BFF
+# corta a chamada ao núcleo em 2,5s (CORE_TIMEOUT_MS), então esperar mais que
+# isso aqui derruba a conversa inteira no fallback do BFF. Se o Gemini não
+# couber no orçamento, o cliente recebe o texto canônico e a redação termina
+# em segundo plano — o próximo já a recebe pronta.
+ORCAMENTO_SINCRONO_S = 1.5
 
 INSTRUCAO_DE_PERGUNTA = """\
 Você é o redator do Guia Inteligente da Claro. Reescreva uma pergunta de \
@@ -178,30 +191,20 @@ async def generate(intent: Intent, roteiro: Script) -> tuple[str, ReplySource]:
     latência e cota por um resultado idêntico.
     """
     canonico = render_canonical(roteiro)
-    guardado = _redigidos.get(("roteiro", intent.id))
-    if guardado is not None:
-        return guardado, ReplySource.GENERATIVE
 
-    # Sem chave o módulo nem tenta: é requisito de avaliação que o sistema
-    # funcione inteiro sem nenhuma credencial (regra 3 do CLAUDE.md).
-    if not settings.gemini_api_key:
-        return canonico, ReplySource.TEMPLATE
-
-    instrucao = INSTRUCAO_DE_SISTEMA.format(max_linhas=MAX_LINHAS)
-    pedido = _montar_pedido(intent, roteiro)
-    limite = settings.llm_timeout_ms / 1000
-
-    try:
+    async def montar() -> str | None:
+        # Timeout, erro de rede, HTTP 4xx/5xx, JSON quebrado, texto que não
+        # passou na ancoragem — qualquer falha devolve None e o texto canônico
+        # continua valendo. Nada disso vira exceção para quem chamou.
+        instrucao = INSTRUCAO_DE_SISTEMA.format(max_linhas=MAX_LINHAS)
+        pedido = _montar_pedido(intent, roteiro)
+        limite = settings.llm_timeout_ms / 1000
         texto = await _com_prazo(_chamar_gemini(instrucao, pedido, limite))
-    except Exception:
-        # Timeout, erro de rede, HTTP 4xx/5xx, JSON quebrado — o motivo não muda
-        # a decisão: cai para o texto canônico e o atendimento segue.
-        return canonico, ReplySource.TEMPLATE
+        return texto if texto and _ancorado(texto) else None
 
-    if not texto or not _ancorado(texto):
+    texto = _garantir_redacao(("roteiro", intent.id), montar)
+    if texto is None:
         return canonico, ReplySource.TEMPLATE
-
-    _redigidos[("roteiro", intent.id)] = texto
     return texto, ReplySource.GENERATIVE
 
 
@@ -216,19 +219,13 @@ def _pergunta_valida(texto: str) -> bool:
 
 async def _redigir_pergunta(chave: tuple[str, str], pedido: str) -> str | None:
     """Chama o Gemini uma vez por chave e guarda. None se não deu."""
-    if chave in _redigidos:
-        return _redigidos[chave]
-    if not settings.gemini_api_key:
-        return None
-    limite = settings.llm_timeout_ms / 1000
-    try:
+
+    async def montar() -> str | None:
+        limite = settings.llm_timeout_ms / 1000
         texto = await _com_prazo(_chamar_gemini(INSTRUCAO_DE_PERGUNTA, pedido, limite))
-    except Exception:
-        return None
-    if not texto or not _pergunta_valida(texto):
-        return None
-    _redigidos[chave] = texto
-    return texto
+        return texto if texto and _pergunta_valida(texto) else None
+
+    return _garantir_redacao(chave, montar)
 
 
 async def gerar_pergunta_de_clarificacao(
@@ -262,6 +259,8 @@ async def gerar_confirmacao(intent: Intent) -> tuple[str, ReplySource] | None:
 
 def limpar_cache() -> None:
     _redigidos.clear()
+    with _trava:
+        _em_andamento.clear()
 
 
 def aquecer_tudo() -> None:
@@ -277,19 +276,23 @@ def aquecer_tudo() -> None:
     """
     if not settings.gemini_api_key:
         return
+    # Sequencial e paciente: disparar tudo em paralelo estoura a cota da API
+    # (medido em 02/09: 64 de 78 chamadas paralelas voltaram HTTP 429).
     for intent in get_flows().intencoes:
-        try:
-            asyncio.run(generate(intent, intent.roteiro))
-            asyncio.run(gerar_confirmacao(intent))
-            if intent.clarificacao is not None:
-                asyncio.run(
-                    gerar_pergunta_de_clarificacao(
-                        intent, [o.label for o in intent.clarificacao.opcoes]
+        for _tentativa in range(2):
+            try:
+                asyncio.run(generate(intent, intent.roteiro))
+                asyncio.run(gerar_confirmacao(intent))
+                if intent.clarificacao is not None:
+                    asyncio.run(
+                        gerar_pergunta_de_clarificacao(
+                            intent, [o.label for o in intent.clarificacao.opcoes]
+                        )
                     )
-                )
-        except Exception:
-            # Aquecimento é melhor-esforço: o que não vier agora vem no uso.
-            continue
+                break
+            except Exception:
+                # Aquecimento é melhor-esforço: o que não vier agora vem no uso.
+                continue
 
 
 def textos_redigidos() -> int:
@@ -299,3 +302,44 @@ def textos_redigidos() -> int:
 def textos_esperados() -> int:
     intencoes = get_flows().intencoes
     return 2 * len(intencoes) + sum(1 for i in intencoes if i.clarificacao is not None)
+
+
+def _garantir_redacao(
+    chave: tuple[str, str],
+    montar: "Callable[[], Awaitable[str | None]]",
+    espera_s: float = ORCAMENTO_SINCRONO_S,
+) -> str | None:
+    """Devolve o texto redigido, esperando no máximo `espera_s`.
+
+    A redação roda numa thread própria e continua mesmo depois de a espera
+    acabar — o resultado fica guardado para o próximo pedido. É isto que
+    mantém o LLM fora do caminho crítico da resposta: o pior caso do cliente
+    é receber o texto canônico uma vez.
+    """
+    if chave in _redigidos:
+        return _redigidos[chave]
+    if not settings.gemini_api_key:
+        return None
+
+    with _trava:
+        evento = _em_andamento.get(chave)
+        if evento is None:
+            evento = threading.Event()
+            _em_andamento[chave] = evento
+
+            def trabalhar() -> None:
+                try:
+                    texto = asyncio.run(montar())
+                    if texto:
+                        _redigidos[chave] = texto
+                except Exception:
+                    pass
+                finally:
+                    with _trava:
+                        _em_andamento.pop(chave, None)
+                    evento.set()
+
+            threading.Thread(target=trabalhar, daemon=True).start()
+
+    evento.wait(espera_s)
+    return _redigidos.get(chave)
