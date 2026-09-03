@@ -13,9 +13,10 @@ cobrança. Ele entende o pedido, decide o destino e explica o próximo passo.
 ![Arquitetura do Claro Guia Inteligente](docs/arquitetura.svg)
 
 O diagrama acima é gerado a partir de uma especificação versionada em
-[`docs/arquitetura.json`](docs/arquitetura.json). A versão interativa, com temas,
-modo apresentação e quatro recortes guiados, está em
-[`docs/arquitetura.html`](docs/arquitetura.html): abra o arquivo no navegador.
+[`docs/arquitetura.json`](docs/arquitetura.json). A versão interativa, com tema
+claro e escuro, modo apresentação, exportação de imagem e quatro recortes
+guiados, está em [`docs/arquitetura.html`](docs/arquitetura.html): baixe e abra
+o arquivo no navegador.
 
 ---
 
