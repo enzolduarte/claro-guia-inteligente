@@ -30,6 +30,7 @@ o arquivo no navegador.
   - [4. Conferir se está no ar](#4-conferir-se-está-no-ar)
 - [Outras formas de executar](#outras-formas-de-executar)
   - [Conversar pelo terminal](#conversar-pelo-terminal)
+  - [Conversar pelo Telegram](#conversar-pelo-telegram)
   - [Rodar os testes](#rodar-os-testes)
   - [Avaliar o classificador](#avaliar-o-classificador)
   - [Medir a latência](#medir-a-latência)
@@ -60,10 +61,11 @@ o arquivo no navegador.
 | Painel operacional com métricas | sim |
 | Interface web com assistente flutuante | sim |
 | Modo claro e escuro | sim |
+| Segundo canal em Telegram | sim, por long polling (opcional) |
 | Avaliação com dataset de referência | sim, `evaluate.py` |
 
-Ainda **não** existe: adaptador de Telegram, empacotamento em Docker,
-autenticação e identidade de cliente entre canais.
+Ainda **não** existe: empacotamento em Docker, autenticação e identidade de
+cliente entre canais.
 
 ---
 
@@ -164,6 +166,46 @@ cd core && .venv/bin/python scripts/chat.py
 Mostra a resposta e, embaixo, o estado, a intenção, a confiança e a camada que
 decidiu. Comandos: `/nova` recomeça a sessão, `/json` mostra a resposta crua,
 `/sair` encerra.
+
+### Conversar pelo Telegram
+
+O mesmo assistente, num segundo canal real. É um processo separado que fica
+escutando o Telegram e conversa com o núcleo pela mesma API que o site usa.
+Precisa do núcleo no ar.
+
+**1. Criar o bot.** Fale com o [@BotFather](https://t.me/BotFather) dentro do
+Telegram, mande `/newbot`, escolha um nome e ele devolve um token.
+
+**2. Guardar o token** no mesmo `core/.env` onde já mora a chave do Gemini:
+
+```bash
+echo 'TELEGRAM_BOT_TOKEN=cole-o-token-aqui' >> core/.env
+```
+
+**3. Subir o adaptador**, num terminal só dele:
+
+```bash
+core/.venv/bin/python adapters/telegram/bot.py
+```
+
+Agora é só procurar o bot no Telegram e mandar uma mensagem. A resposta é a
+mesma que o site daria, com o mesmo destino: quem decide é o núcleo, e o
+adaptador só traduz o formato.
+
+Sem o token, o comando avisa e encerra sem erro. Isso é proposital: o sistema
+tem que rodar sem chave nenhuma, e a falta do token desliga só este canal.
+
+Um detalhe de segurança que vale saber: um bot de Telegram é público, então
+qualquer pessoa que descubra o nome dele consegue conversar e gastar sua cota do
+Gemini. Para liberar apenas você, mande uma mensagem qualquer, leia o número do
+chat no log e coloque em `core/.env`:
+
+```bash
+echo 'TELEGRAM_ALLOWED_CHATS=123456789' >> core/.env
+```
+
+Os detalhes de como o adaptador funciona por dentro, e como escrever um para
+outro canal, estão em [`adapters/README.md`](adapters/README.md).
 
 ### Rodar os testes
 
@@ -290,7 +332,8 @@ número de protocolo.
 
 ## Arquitetura
 
-Dois processos separados. O diagrama completo está no
+Dois processos obrigatórios, o núcleo e a web, mais o adaptador de Telegram
+quando esse canal está ligado. O diagrama completo está no
 [topo deste arquivo](#claro-guia-inteligente); a versão interativa em
 [`docs/arquitetura.html`](docs/arquitetura.html) traz quatro recortes guiados:
 o caminho de uma mensagem, a cascata de decisão, a degradação e a telemetria.
@@ -304,6 +347,11 @@ aparecem no código enviado ao navegador.
 é uma string opaca no formato `canal:identificador`. Isso é o que permite o
 mesmo cérebro atender site, Telegram ou qualquer canal futuro, e é o que faz uma
 conversa iniciada no site poder continuar em outro canal.
+
+**Os adaptadores são finos de propósito.** Um canal só traduz formato: monta a
+chamada, desenha a resposta. Nenhuma decisão mora ali, e é isso que garante que
+a mesma frase produza o mesmo destino no site e no Telegram. Como escrever um
+canal novo está em [`adapters/README.md`](adapters/README.md).
 
 ### Degradação em três níveis
 
@@ -334,6 +382,9 @@ Tudo por variável de ambiente, com valor padrão. **Nada é obrigatório.**
 | `EMBEDDING_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` | modelo de similaridade |
 | `DB_PATH` | `./data/telemetria.db` | banco da telemetria |
 | `FLOWS_PATH` | `./data/flows.json` | base de conhecimento |
+| `TELEGRAM_BOT_TOKEN` | vazio | sem ele, o canal de Telegram não sobe |
+| `TELEGRAM_ALLOWED_CHATS` | vazio | `chat_id` liberados, separados por vírgula |
+| `TELEGRAM_POLL_TIMEOUT_S` | `30` | quanto tempo cada espera segura a conexão |
 
 Para usar o Gemini, crie `core/.env`:
 
@@ -431,6 +482,10 @@ claro-guia-inteligente/
 │   ├── scripts/               ferramentas de linha de comando
 │   ├── tests/                 243 testes
 │   └── evaluate.py            avaliação do classificador
+├── adapters/                  canais que conversam com o núcleo
+│   ├── README.md              o contrato e como escrever um canal novo
+│   └── telegram/
+│       └── bot.py             segundo canal, por long polling
 └── web/                       interface em Next.js
     ├── app/
     │   ├── page.tsx           portal com o assistente flutuante
@@ -471,9 +526,10 @@ intenção, não da mensagem. O núcleo redige cada texto uma vez e o guarda.
 
 Documentados de propósito, não escondidos.
 
-**Um canal só.** A arquitetura suporta vários e a continuidade entre eles
-funciona, mas apenas o canal web está construído. O adaptador de Telegram não
-existe.
+**O Telegram depende de um processo de pé.** O canal usa long polling, que
+dispensa URL pública mas exige que o adaptador esteja rodando. Se ele cair, as
+mensagens ficam guardadas no Telegram e são entregues quando ele voltar, mas
+ninguém é atendido enquanto isso.
 
 **Sem identidade de cliente.** Duas conversas da mesma pessoa em canais
 diferentes só são ligadas se compartilharem o identificador de sessão. Ligar
@@ -488,5 +544,9 @@ exemplos ao `flows.json`.
 **A telemetria guarda a frase do cliente.** Hoje são dados fictícios, mas num
 uso real isso exigiria política de retenção e anonimização.
 
-**Sem empacotamento.** Não há Dockerfile nem docker-compose; a execução é
-manual, com os dois processos descritos acima.
+**Sem empacotamento.** Não há Dockerfile nem docker-compose; cada processo sobe
+manualmente, no seu próprio terminal.
+
+**O diagrama de arquitetura ainda mostra só o canal web.** O
+`docs/arquitetura.json` foi desenhado antes do adaptador de Telegram existir e
+precisa ser regerado para incluí-lo.

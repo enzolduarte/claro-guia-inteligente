@@ -1,0 +1,3 @@
+# O adaptador é um processo separado do núcleo e NÃO importa nada de core/.
+# Por isso não herda torch nem sentence-transformers: aqui só se fala HTTP.
+httpx==0.28.1
