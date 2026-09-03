@@ -10,6 +10,13 @@ ao fluxo de atendimento correto.
 **Ele roteia, não resolve.** Não emite boleto, não troca plano, não estorna
 cobrança. Ele entende o pedido, decide o destino e explica o próximo passo.
 
+![Arquitetura do Claro Guia Inteligente](docs/arquitetura.svg)
+
+O diagrama acima é gerado a partir de uma especificação versionada em
+[`docs/arquitetura.json`](docs/arquitetura.json). A versão interativa, com temas,
+modo apresentação e quatro recortes guiados, está em
+[`docs/arquitetura.html`](docs/arquitetura.html): abra o arquivo no navegador.
+
 ---
 
 ## Índice
@@ -26,6 +33,7 @@ cobrança. Ele entende o pedido, decide o destino e explica o próximo passo.
   - [Avaliar o classificador](#avaliar-o-classificador)
   - [Medir a latência](#medir-a-latência)
   - [Popular o painel](#popular-o-painel)
+  - [Regerar o diagrama de arquitetura](#regerar-o-diagrama-de-arquitetura)
   - [Diagnosticar o Gemini](#diagnosticar-o-gemini)
 - [Como o sistema decide](#como-o-sistema-decide)
 - [Arquitetura](#arquitetura)
@@ -203,6 +211,26 @@ visualmente do dado real. Para limpar depois:
 cd core && .venv/bin/python -c "import sqlite3; c=sqlite3.connect('data/telemetria.db'); print('removidas:', c.execute('DELETE FROM interacoes WHERE simulado=1').rowcount); c.commit()"
 ```
 
+### Regerar o diagrama de arquitetura
+
+O diagrama é produzido pelo [Archify](https://github.com/tt-a1i/archify), uma
+skill de agente que compila uma especificação JSON em HTML interativo e valida a
+geometria antes de entregar.
+
+```bash
+npx skills add tt-a1i/archify -g
+```
+
+Depois de editar `docs/arquitetura.json`:
+
+```bash
+node ~/.agents/skills/archify/bin/archify.mjs deliver architecture docs/arquitetura.json docs/arquitetura.html --quality showcase
+```
+
+A validação recusa a entrega se alguma linha cruzar um componente, se um rótulo
+encostar em outro ou se o texto ficar pequeno demais para ler numa tela de
+1440px. São nove checagens automáticas de composição.
+
 ### Diagnosticar o Gemini
 
 O sistema esconde falhas do LLM de propósito: se a chamada falha, ele responde
@@ -261,23 +289,10 @@ número de protocolo.
 
 ## Arquitetura
 
-Dois processos separados.
-
-```
-┌─────────────────────────────┐     ┌──────────────────────────────┐
-│  web  (Next.js · porta 3000)│     │  core  (FastAPI · porta 8000)│
-│                             │     │                              │
-│  site + assistente          │────►│  classificação               │
-│  painel operacional         │ HTTP│  máquina de estados          │
-│  BFF (fala com o núcleo)    │◄────│  roteamento e protocolos     │
-│  regras locais de emergência│     │  geração de texto            │
-└─────────────────────────────┘     │  telemetria (SQLite)         │
-         ▲                          └──────────────────────────────┘
-         │                                        ▲
-     navegador                                    │
-                                            flows.json
-                                    (intenções, destinos, roteiros)
-```
+Dois processos separados. O diagrama completo está no
+[topo deste arquivo](#claro-guia-inteligente); a versão interativa em
+[`docs/arquitetura.html`](docs/arquitetura.html) traz quatro recortes guiados:
+o caminho de uma mensagem, a cascata de decisão, a degradação e a telemetria.
 
 **Só o `web` expõe porta ao usuário.** O navegador nunca fala com o núcleo:
 todas as chamadas passam pelo servidor do Next.js, que conhece o endereço

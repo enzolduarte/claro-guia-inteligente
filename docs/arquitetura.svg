@@ -1,0 +1,270 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1378 690" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="signal-flow" data-quality-profile="showcase">
+        <title id="archify-diagram-title">Claro Guia Inteligente</title>
+        <desc id="archify-diagram-description">Assistente de roteamento conversacional · Challenge 2026 · FIAP 4SI · Time Adamanto AI</desc>
+        <!-- Definitions -->
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-default" />
+          </marker>
+          <marker id="arrowhead-emphasis" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-emphasis" />
+          </marker>
+          <marker id="arrowhead-security" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-security" />
+          </marker>
+          <marker id="arrowhead-dashed" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-dashed" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" class="c-grid" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <!-- Background Grid -->
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- Boundaries (behind everything) -->
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" data-composition-frame-label="web · Next.js" x="222" y="112" width="416" height="510" rx="12" class="c-region" stroke-width="1"/>
+
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="1" data-composition-frame-label="core · Python" x="732" y="112" width="606" height="510" rx="12" class="c-region" stroke-width="1"/>
+
+        <!-- Connection paths (before components for correct z-order) -->
+        <path data-edge-from="cliente" data-edge-to="web" data-edge-key="0" data-composition-points="190,361;250,361" d="M 190 361 L 250 361" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="web" data-edge-to="bff" data-edge-key="1" data-composition-points="400,361;460,361" d="M 400 361 L 460 361" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="bff" data-edge-to="core" data-edge-label="POST /v1/interpret" data-edge-key="2" data-composition-points="610,368;760,368" d="M 610 368 L 760 368" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="bff" data-edge-to="fallback" data-edge-label="timeout 2,5s" data-edge-key="3" data-composition-points="535,392;535,540" d="M 535 392 L 535 540" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="core" data-edge-to="sensibilidade" data-edge-key="4" data-composition-points="835,392;835,540" d="M 835 392 L 835 540" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="sensibilidade" data-edge-to="regras" data-edge-key="5" data-composition-points="910,571;960,571" d="M 910 571 L 960 571" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="regras" data-edge-to="embeddings" data-edge-key="6" data-composition-points="1110,571;1160,571" d="M 1110 571 L 1160 571" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="embeddings" data-edge-to="roteamento" data-edge-key="7" data-composition-points="1235,540;1235,392" d="M 1235 540 L 1235 392" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="roteamento" data-edge-to="gemini" data-edge-label="reescreve" data-edge-key="8" data-composition-points="1235,330;1235,202" d="M 1235 330 L 1235 202" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="roteamento" data-edge-to="flows" data-edge-label="le o roteiro" data-edge-key="9" data-composition-points="1160,361;1135,361;1135,171;1110,171" d="M 1160 361 L 1143 361 Q 1135 361 1135 353 L 1135 179 Q 1135 171 1127 171 L 1110 171" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="core" data-edge-to="telemetria" data-edge-label="grava depois" data-edge-key="10" data-composition-points="835,330;835,202" d="M 835 330 L 835 202" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="painel" data-edge-to="core" data-edge-label="GET /v1/metrics" data-edge-key="11" data-composition-points="400,171;736,171;736,354;760,354" d="M 400 171 L 728 171 Q 736 171 736 179 L 736 346 Q 736 354 744 354 L 760 354" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+        <!-- Components -->
+        <g id="node-cliente" data-node-id="cliente" data-node-label="Cliente" tabindex="0" role="button" aria-label="Focus Cliente, navegador, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="navegador" data-node-context="Architecture component">
+          <title>Cliente · navegador · Architecture component</title>
+          <rect x="40" y="330" width="150" height="62" rx="6" class="c-mask"/>
+          <rect x="40" y="330" width="150" height="62" rx="6" class="c-external" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(46 336) scale(0.6875)">
+            <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
+            <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="115" y="359" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Cliente</text>
+        <text data-detail="context" x="115" y="375" class="t-muted" font-size="9" text-anchor="middle">navegador</text>
+        </g>
+
+        <g id="node-web" data-node-id="web" data-node-label="Interface" tabindex="0" role="button" aria-label="Focus Interface, Next.js :3000, web · Next.js" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="Next.js :3000" data-node-context="web · Next.js">
+          <title>Interface · Next.js :3000 · web · Next.js</title>
+          <rect x="250" y="330" width="150" height="62" rx="6" class="c-mask"/>
+          <rect x="250" y="330" width="150" height="62" rx="6" class="c-frontend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(256 336) scale(0.6875)">
+            <rect x="2" y="3" width="12" height="10" rx="2"/>
+            <path d="M2 6.5h12"/>
+            <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
+            <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="325" y="359" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Interface</text>
+        <text data-detail="context" x="325" y="375" class="t-muted" font-size="9" text-anchor="middle">Next.js :3000</text>
+        </g>
+
+        <g id="node-painel" data-node-id="painel" data-node-label="Painel" tabindex="0" role="button" aria-label="Focus Painel, /admin, web · Next.js" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="/admin" data-node-context="web · Next.js">
+          <title>Painel · /admin · web · Next.js</title>
+          <rect x="250" y="140" width="150" height="62" rx="6" class="c-mask"/>
+          <rect x="250" y="140" width="150" height="62" rx="6" class="c-frontend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(256 146) scale(0.6875)">
+            <rect x="2" y="3" width="12" height="10" rx="2"/>
+            <path d="M2 6.5h12"/>
+            <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
+            <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="325" y="169" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Painel</text>
+        <text data-detail="context" x="325" y="185" class="t-muted" font-size="9" text-anchor="middle">/admin</text>
+        </g>
+
+        <g id="node-bff" data-node-id="bff" data-node-label="BFF" tabindex="0" role="button" aria-label="Focus BFF, /api/chat, web · Next.js" aria-pressed="false" data-node-kind="backend" data-node-sublabel="/api/chat" data-node-context="web · Next.js">
+          <title>BFF · /api/chat · web · Next.js</title>
+          <rect x="460" y="330" width="150" height="62" rx="6" class="c-mask"/>
+          <rect x="460" y="330" width="150" height="62" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(466 336) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="535" y="359" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">BFF</text>
+        <text data-detail="context" x="535" y="375" class="t-muted" font-size="9" text-anchor="middle">/api/chat</text>
+        </g>
+
+        <g id="node-fallback" data-node-id="fallback" data-node-label="Regras locais" tabindex="0" role="button" aria-label="Focus Regras locais, nivel 3, web · Next.js" aria-pressed="false" data-node-kind="backend" data-node-sublabel="nivel 3" data-node-context="web · Next.js">
+          <title>Regras locais · nivel 3 · web · Next.js</title>
+          <rect x="460" y="540" width="150" height="62" rx="6" class="c-mask"/>
+          <rect x="460" y="540" width="150" height="62" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(466 546) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="535" y="569" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Regras locais</text>
+        <text data-detail="context" x="535" y="585" class="t-muted" font-size="9" text-anchor="middle">nivel 3</text>
+        </g>
+
+        <g id="node-core" data-node-id="core" data-node-label="Nucleo" tabindex="0" role="button" aria-label="Focus Nucleo, FastAPI :8000, core · Python" aria-pressed="false" data-node-kind="backend" data-node-sublabel="FastAPI :8000" data-node-context="core · Python">
+          <title>Nucleo · FastAPI :8000 · core · Python</title>
+          <rect x="760" y="330" width="150" height="62" rx="6" class="c-mask"/>
+          <rect x="760" y="330" width="150" height="62" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(766 336) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="835" y="359" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Nucleo</text>
+        <text data-detail="context" x="835" y="375" class="t-muted" font-size="9" text-anchor="middle">FastAPI :8000</text>
+        </g>
+
+        <g id="node-sensibilidade" data-node-id="sensibilidade" data-node-label="Sensibilidade" tabindex="0" role="button" aria-label="Focus Sensibilidade, etapa 1, core · Python" aria-pressed="false" data-node-kind="security" data-node-sublabel="etapa 1" data-node-context="core · Python">
+          <title>Sensibilidade · etapa 1 · core · Python</title>
+          <rect x="760" y="540" width="150" height="62" rx="6" class="c-mask"/>
+          <rect x="760" y="540" width="150" height="62" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(766 546) scale(0.6875)">
+            <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
+            <path d="m5.8 8 1.5 1.5 3-3"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="835" y="569" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Sensibilidade</text>
+        <text data-detail="context" x="835" y="585" class="t-muted" font-size="9" text-anchor="middle">etapa 1</text>
+        </g>
+
+        <g id="node-regras" data-node-id="regras" data-node-label="Palavras-chave" tabindex="0" role="button" aria-label="Focus Palavras-chave, etapa 2, core · Python" aria-pressed="false" data-node-kind="backend" data-node-sublabel="etapa 2" data-node-context="core · Python">
+          <title>Palavras-chave · etapa 2 · core · Python</title>
+          <rect x="960" y="540" width="150" height="62" rx="6" class="c-mask"/>
+          <rect x="960" y="540" width="150" height="62" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(966 546) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="1035" y="569" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Palavras-chave</text>
+        <text data-detail="context" x="1035" y="585" class="t-muted" font-size="9" text-anchor="middle">etapa 2</text>
+        </g>
+
+        <g id="node-embeddings" data-node-id="embeddings" data-node-label="Similaridade" tabindex="0" role="button" aria-label="Focus Similaridade, etapa 3, core · Python" aria-pressed="false" data-node-kind="backend" data-node-sublabel="etapa 3" data-node-context="core · Python">
+          <title>Similaridade · etapa 3 · core · Python</title>
+          <rect x="1160" y="540" width="150" height="62" rx="6" class="c-mask"/>
+          <rect x="1160" y="540" width="150" height="62" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(1166 546) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="1235" y="569" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Similaridade</text>
+        <text data-detail="context" x="1235" y="585" class="t-muted" font-size="9" text-anchor="middle">etapa 3</text>
+        </g>
+
+        <g id="node-roteamento" data-node-id="roteamento" data-node-label="Roteamento" tabindex="0" role="button" aria-label="Focus Roteamento, etapa 4, core · Python" aria-pressed="false" data-node-kind="backend" data-node-sublabel="etapa 4" data-node-context="core · Python">
+          <title>Roteamento · etapa 4 · core · Python</title>
+          <rect x="1160" y="330" width="150" height="62" rx="6" class="c-mask"/>
+          <rect x="1160" y="330" width="150" height="62" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(1166 336) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="1235" y="359" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Roteamento</text>
+        <text data-detail="context" x="1235" y="375" class="t-muted" font-size="9" text-anchor="middle">etapa 4</text>
+        </g>
+
+        <g id="node-gemini" data-node-id="gemini" data-node-label="Gemini" tabindex="0" role="button" aria-label="Focus Gemini, etapa 5 · opcional, Architecture component" aria-pressed="false" data-node-kind="cloud" data-node-sublabel="etapa 5 · opcional" data-node-context="Architecture component">
+          <title>Gemini · etapa 5 · opcional · Architecture component</title>
+          <rect x="1160" y="140" width="150" height="62" rx="6" class="c-mask"/>
+          <rect x="1160" y="140" width="150" height="62" rx="6" class="c-cloud" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="cloud" class="semantic-sigil s-cloud" transform="translate(1166 146) scale(0.6875)">
+            <path d="M4.3 12.5h7.3a2.4 2.4 0 0 0 .2-4.8 4 4 0 0 0-7.5-1.3A3.1 3.1 0 0 0 4.3 12.5Z"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="1235" y="169" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Gemini</text>
+        <text data-detail="context" x="1235" y="185" class="t-muted" font-size="9" text-anchor="middle">etapa 5 · opcional</text>
+        </g>
+
+        <g id="node-flows" data-node-id="flows" data-node-label="flows.json" tabindex="0" role="button" aria-label="Focus flows.json, fonte da verdade, Architecture component" aria-pressed="false" data-node-kind="database" data-node-sublabel="fonte da verdade" data-node-context="Architecture component">
+          <title>flows.json · fonte da verdade · Architecture component</title>
+          <rect x="960" y="140" width="150" height="62" rx="6" class="c-mask"/>
+          <rect x="960" y="140" width="150" height="62" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(966 146) scale(0.6875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="1035" y="169" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">flows.json</text>
+        <text data-detail="context" x="1035" y="185" class="t-muted" font-size="9" text-anchor="middle">fonte da verdade</text>
+        </g>
+
+        <g id="node-telemetria" data-node-id="telemetria" data-node-label="Telemetria" tabindex="0" role="button" aria-label="Focus Telemetria, SQLite · etapa 6, core · Python" aria-pressed="false" data-node-kind="database" data-node-sublabel="SQLite · etapa 6" data-node-context="core · Python">
+          <title>Telemetria · SQLite · etapa 6 · core · Python</title>
+          <rect x="760" y="140" width="150" height="62" rx="6" class="c-mask"/>
+          <rect x="760" y="140" width="150" height="62" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(766 146) scale(0.6875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="835" y="169" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Telemetria</text>
+        <text data-detail="context" x="835" y="185" class="t-muted" font-size="9" text-anchor="middle">SQLite · etapa 6</text>
+        </g>
+
+        <!-- Connection labels -->
+
+
+        <g data-detail="context" data-edge-from="bff" data-edge-to="core" data-edge-label="POST /v1/interpret" data-edge-key="2">
+          <rect x="628.8" y="348" width="96.39999999999999" height="14" rx="3" class="c-mask"/>
+          <text x="677" y="358" class="t-backend" font-size="8" text-anchor="middle">POST /v1/interpret</text>
+        </g>
+        <g data-detail="context" data-edge-from="bff" data-edge-to="fallback" data-edge-label="timeout 2,5s" data-edge-key="3">
+          <rect x="501.2" y="396" width="67.6" height="14" rx="3" class="c-mask"/>
+          <text x="535" y="406" class="t-messagebus" font-size="8" text-anchor="middle">timeout 2,5s</text>
+        </g>
+
+
+
+
+        <g data-detail="context" data-edge-from="roteamento" data-edge-to="gemini" data-edge-label="reescreve" data-edge-key="8">
+          <rect x="1208.4" y="310" width="53.199999999999996" height="14" rx="3" class="c-mask"/>
+          <text x="1235" y="320" class="t-messagebus" font-size="8" text-anchor="middle">reescreve</text>
+        </g>
+        <g data-detail="context" data-edge-from="roteamento" data-edge-to="flows" data-edge-label="le o roteiro" data-edge-key="9">
+          <rect x="1101.2" y="246" width="67.6" height="14" rx="3" class="c-mask"/>
+          <text x="1135" y="256" class="t-muted" font-size="8" text-anchor="middle">le o roteiro</text>
+        </g>
+        <g data-detail="context" data-edge-from="core" data-edge-to="telemetria" data-edge-label="grava depois" data-edge-key="10">
+          <rect x="801.2" y="310" width="67.6" height="14" rx="3" class="c-mask"/>
+          <text x="835" y="320" class="t-muted" font-size="8" text-anchor="middle">grava depois</text>
+        </g>
+        <g data-detail="context" data-edge-from="painel" data-edge-to="core" data-edge-label="GET /v1/metrics" data-edge-key="11">
+          <rect x="695" y="242.5" width="82" height="14" rx="3" class="c-mask"/>
+          <text x="736" y="252.5" class="t-muted" font-size="8" text-anchor="middle">GET /v1/metrics</text>
+        </g>
+
+        <!-- Boundary labels (foreground masks keep routes out of titles) -->
+        <g data-graph-role="structural-frame-label" data-composition-frame-id="0" data-composition-frame-kind="region" data-composition-frame-label="web · Next.js">
+          <rect data-graph-role="structural-frame-label-mask" x="226" y="120" width="80.2" height="16" rx="3" class="c-mask"/>
+          <text data-boundary-label="" x="230" y="133" class="t-cloud" font-size="9" font-weight="600">web · Next.js</text>
+        </g>
+
+        <g data-graph-role="structural-frame-label" data-composition-frame-id="1" data-composition-frame-kind="region" data-composition-frame-label="core · Python">
+          <rect data-graph-role="structural-frame-label-mask" x="736" y="120" width="80.2" height="16" rx="3" class="c-mask"/>
+          <text data-boundary-label="" x="740" y="133" class="t-cloud" font-size="9" font-weight="600">core · Python</text>
+        </g>
+
+        <!-- Legend -->
+        <g data-legend="" data-legend-bridge="">
+          <text x="40" y="654" class="t-primary" font-size="12" font-weight="650">Legend</text>
+          <g data-legend-semantic-kind="frontend" data-legend-kind="frontend" data-legend-label="Frontend" data-legend-x="40" data-legend-baseline="674" data-legend-width="83">
+            <rect x="40" y="665" width="16" height="10" rx="2.5" class="c-frontend" stroke-width="1"/>
+            <text x="62" y="674" class="t-muted" font-size="10" font-weight="500">Frontend</text>
+          </g>
+          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="Backend" data-legend-x="145" data-legend-baseline="674" data-legend-width="78">
+            <rect x="145" y="665" width="16" height="10" rx="2.5" class="c-backend" stroke-width="1"/>
+            <text x="167" y="674" class="t-muted" font-size="10" font-weight="500">Backend</text>
+          </g>
+          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="Database" data-legend-x="245" data-legend-baseline="674" data-legend-width="83">
+            <rect x="245" y="665" width="16" height="10" rx="2.5" class="c-database" stroke-width="1"/>
+            <text x="267" y="674" class="t-muted" font-size="10" font-weight="500">Database</text>
+          </g>
+          <g data-legend-semantic-kind="cloud" data-legend-kind="cloud" data-legend-label="Cloud" data-legend-x="350" data-legend-baseline="674" data-legend-width="68">
+            <rect x="350" y="665" width="16" height="10" rx="2.5" class="c-cloud" stroke-width="1"/>
+            <text x="372" y="674" class="t-muted" font-size="10" font-weight="500">Cloud</text>
+          </g>
+          <g data-legend-semantic-kind="security" data-legend-kind="security" data-legend-label="Security" data-legend-x="440" data-legend-baseline="674" data-legend-width="83">
+            <rect x="440" y="665" width="16" height="10" rx="2.5" class="c-security" stroke-width="1"/>
+            <text x="462" y="674" class="t-muted" font-size="10" font-weight="500">Security</text>
+          </g>
+          <g data-legend-semantic-kind="external" data-legend-kind="external" data-legend-label="External" data-legend-x="545" data-legend-baseline="674" data-legend-width="83">
+            <rect x="545" y="665" width="16" height="10" rx="2.5" class="c-external" stroke-width="1"/>
+            <text x="567" y="674" class="t-muted" font-size="10" font-weight="500">External</text>
+          </g>
+        </g>
+      </svg>

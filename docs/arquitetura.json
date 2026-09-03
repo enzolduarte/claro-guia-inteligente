@@ -1,0 +1,331 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Claro Guia Inteligente",
+    "subtitle": "Assistente de roteamento conversacional · Challenge 2026 · FIAP 4SI · Time Adamanto AI",
+    "output": "arquitetura.html",
+    "quality_profile": "showcase",
+    "visual_preset": "signal-flow",
+    "views": [
+      {
+        "id": "caminho",
+        "label": "Caminho de uma mensagem",
+        "focus": [
+          "cliente",
+          "web",
+          "bff",
+          "core",
+          "roteamento"
+        ],
+        "note": "O cliente escreve no site. O BFF repassa ao nucleo, que decide o destino e devolve a resposta."
+      },
+      {
+        "id": "cascata",
+        "label": "Cascata de decisao",
+        "focus": [
+          "core",
+          "sensibilidade",
+          "regras",
+          "embeddings",
+          "roteamento"
+        ],
+        "note": "Sensibilidade primeiro, depois palavra-chave, depois similaridade semantica. So entao o destino e definido."
+      },
+      {
+        "id": "degradacao",
+        "label": "Degradacao graciosa",
+        "focus": [
+          "bff",
+          "fallback",
+          "core",
+          "gemini"
+        ],
+        "note": "Gemini fora cai no texto padrao. Nucleo fora, o BFF classifica sozinho pelas regras locais."
+      },
+      {
+        "id": "dados",
+        "label": "Base e telemetria",
+        "focus": [
+          "flows",
+          "telemetria",
+          "painel",
+          "core"
+        ],
+        "note": "O flows.json manda em tudo. A telemetria grava depois da resposta e alimenta o painel."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "cliente",
+      "type": "external",
+      "label": "Cliente",
+      "sublabel": "navegador",
+      "pos": [
+        40,
+        330
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "Interface",
+      "sublabel": "Next.js :3000",
+      "pos": [
+        250,
+        330
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "painel",
+      "type": "frontend",
+      "label": "Painel",
+      "sublabel": "/admin",
+      "pos": [
+        250,
+        140
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "bff",
+      "type": "backend",
+      "label": "BFF",
+      "sublabel": "/api/chat",
+      "pos": [
+        460,
+        330
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "fallback",
+      "type": "backend",
+      "label": "Regras locais",
+      "sublabel": "nivel 3",
+      "pos": [
+        460,
+        540
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "core",
+      "type": "backend",
+      "label": "Nucleo",
+      "sublabel": "FastAPI :8000",
+      "pos": [
+        760,
+        330
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "sensibilidade",
+      "type": "security",
+      "label": "Sensibilidade",
+      "sublabel": "etapa 1",
+      "pos": [
+        760,
+        540
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "regras",
+      "type": "backend",
+      "label": "Palavras-chave",
+      "sublabel": "etapa 2",
+      "pos": [
+        960,
+        540
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "embeddings",
+      "type": "backend",
+      "label": "Similaridade",
+      "sublabel": "etapa 3",
+      "pos": [
+        1160,
+        540
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "roteamento",
+      "type": "backend",
+      "label": "Roteamento",
+      "sublabel": "etapa 4",
+      "pos": [
+        1160,
+        330
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "gemini",
+      "type": "cloud",
+      "label": "Gemini",
+      "sublabel": "etapa 5 · opcional",
+      "pos": [
+        1160,
+        140
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "flows",
+      "type": "database",
+      "label": "flows.json",
+      "sublabel": "fonte da verdade",
+      "pos": [
+        960,
+        140
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "telemetria",
+      "type": "database",
+      "label": "Telemetria",
+      "sublabel": "SQLite · etapa 6",
+      "pos": [
+        760,
+        140
+      ],
+      "size": [
+        150,
+        62
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "web · Next.js",
+      "wraps": [
+        "web",
+        "painel",
+        "bff",
+        "fallback"
+      ],
+      "pad": 28
+    },
+    {
+      "kind": "region",
+      "label": "core · Python",
+      "wraps": [
+        "core",
+        "sensibilidade",
+        "regras",
+        "embeddings",
+        "roteamento",
+        "telemetria"
+      ],
+      "pad": 28
+    }
+  ],
+  "connections": [
+    {
+      "from": "cliente",
+      "to": "web",
+      "variant": "emphasis"
+    },
+    {
+      "from": "web",
+      "to": "bff"
+    },
+    {
+      "from": "bff",
+      "to": "core",
+      "label": "POST /v1/interpret",
+      "variant": "emphasis",
+      "labelDx": -8
+    },
+    {
+      "from": "bff",
+      "to": "fallback",
+      "label": "timeout 2,5s",
+      "variant": "dashed",
+      "labelDy": 24
+    },
+    {
+      "from": "core",
+      "to": "sensibilidade"
+    },
+    {
+      "from": "sensibilidade",
+      "to": "regras"
+    },
+    {
+      "from": "regras",
+      "to": "embeddings"
+    },
+    {
+      "from": "embeddings",
+      "to": "roteamento"
+    },
+    {
+      "from": "roteamento",
+      "to": "gemini",
+      "label": "reescreve",
+      "variant": "dashed"
+    },
+    {
+      "from": "roteamento",
+      "to": "flows",
+      "label": "le o roteiro"
+    },
+    {
+      "from": "core",
+      "to": "telemetria",
+      "label": "grava depois"
+    },
+    {
+      "from": "painel",
+      "to": "core",
+      "label": "GET /v1/metrics"
+    }
+  ]
+}
